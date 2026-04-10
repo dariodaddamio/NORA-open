@@ -52,6 +52,10 @@ class PipelineConfig:
     graph_min_entity_confidence: float
     max_topics_per_video: int
     taxonomy_path: Path
+    taxonomy_mode: str
+    taxonomy_auto_max_categories: int
+    taxonomy_auto_min_slug_len: int
+    taxonomy_auto_max_slug_len: int
     visual_context_enabled: bool
     max_keyframes_analyzed: int
     max_images_per_note: int
@@ -329,6 +333,17 @@ def _cfg() -> PipelineConfig:
         graph_min_entity_confidence=float(os.getenv("GRAPH_MIN_ENTITY_CONFIDENCE", "0.55")),
         max_topics_per_video=max(1, int(os.getenv("MAX_TOPICS_PER_VIDEO", "6"))),
         taxonomy_path=Path(os.getenv("TAXONOMY_PATH", "taxonomy.json")),
+        taxonomy_mode=(
+            "auto"
+            if (os.getenv("TAXONOMY_MODE", "static").strip().lower() or "static") == "auto"
+            else "static"
+        ),
+        taxonomy_auto_max_categories=max(
+            len(DEFAULT_TOP_LEVEL_CATEGORIES) + 1,
+            int(os.getenv("TAXONOMY_AUTO_MAX_CATEGORIES", "48")),
+        ),
+        taxonomy_auto_min_slug_len=max(1, int(os.getenv("TAXONOMY_AUTO_MIN_SLUG_LEN", "2"))),
+        taxonomy_auto_max_slug_len=max(2, min(80, int(os.getenv("TAXONOMY_AUTO_MAX_SLUG_LEN", "40")))),
         visual_context_enabled=os.getenv("VISUAL_CONTEXT_ENABLED", "true").strip().lower() in {"1", "true", "yes", "y"},
         max_keyframes_analyzed=max(1, int(os.getenv("MAX_KEYFRAMES_ANALYZED", "12"))),
         max_images_per_note=max(1, min(3, int(os.getenv("MAX_IMAGES_PER_NOTE", "3")))),
@@ -411,6 +426,114 @@ def _load_taxonomy(cfg: PipelineConfig) -> TaxonomyConfig:
         tag_prefixes=DEFAULT_TAG_PREFIXES[:],
         synonyms={},
     )
+
+
+def _default_taxonomy_dict() -> dict[str, Any]:
+    return {
+        "categories": DEFAULT_TOP_LEVEL_CATEGORIES[:],
+        "tag_prefixes": DEFAULT_TAG_PREFIXES[:],
+        "synonyms": {},
+    }
+
+
+def _sanitize_taxonomy_category_slug(
+    raw: str,
+    *,
+    min_len: int,
+    max_len: int,
+) -> Optional[str]:
+    t = (raw or "").strip()
+    if not t:
+        return None
+    s = t.lower()
+    s = re.sub(r"\s+", "-", s)
+    s = re.sub(r"[^a-z0-9\-]+", "", s)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    if not s or len(s) < min_len or len(s) > max_len:
+        return None
+    if s in {"unknown", "none", "n-a", "na"}:
+        return None
+    return s
+
+
+def _merge_category_into_taxonomy_json(path: Path, new_category: str, *, max_categories: int) -> bool:
+    """Append new_category to taxonomy JSON if under max_categories. Atomic replace on success."""
+    new_category = (new_category or "").strip().lower()
+    if not new_category or new_category == "general":
+        return True
+    try:
+        if path.exists():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                data = _default_taxonomy_dict()
+        else:
+            data = _default_taxonomy_dict()
+        categories = [str(v).strip().lower() for v in data.get("categories", []) if str(v).strip()]
+        tag_prefixes = [str(v).strip().lower() for v in data.get("tag_prefixes", []) if str(v).strip()]
+        synonyms_obj = data.get("synonyms", {})
+        if not isinstance(synonyms_obj, dict):
+            synonyms_obj = {}
+        synonyms = {
+            str(k).strip().lower(): str(v).strip().lower()
+            for k, v in synonyms_obj.items()
+            if str(k).strip() and str(v).strip()
+        }
+        if not tag_prefixes:
+            tag_prefixes = DEFAULT_TAG_PREFIXES[:]
+        categories = _dedupe_preserve_order(categories)
+        if "general" not in categories:
+            categories.append("general")
+        if new_category in categories:
+            return True
+        if len(categories) >= max_categories:
+            print(
+                f"[TAXONOMY] auto-merge skipped: at max categories ({max_categories}); "
+                f"cannot add {new_category!r}"
+            )
+            return False
+        categories.append(new_category)
+        categories = _dedupe_preserve_order(categories)
+        out = {
+            "categories": categories,
+            "tag_prefixes": _dedupe_preserve_order(tag_prefixes),
+            "synonyms": synonyms,
+        }
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.parent / f".{path.name}.{os.getpid()}.tmp"
+        tmp.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(str(tmp), str(path))
+        print(f"[TAXONOMY] auto-merged new category: {new_category}")
+        return True
+    except Exception as e:
+        print(f"[TAXONOMY] auto-merge failed: {e}")
+        return False
+
+
+def _apply_taxonomy_auto_merge(
+    class_raw: Any,
+    taxonomy: TaxonomyConfig,
+    cfg: PipelineConfig,
+) -> tuple[TaxonomyConfig, str]:
+    if not isinstance(class_raw, dict):
+        return taxonomy, "general"
+    raw = str(class_raw.get("category", "general")).strip().lower() or "general"
+    cats_lower = {c.lower() for c in taxonomy.categories}
+    if raw in cats_lower:
+        return taxonomy, raw
+    slug = _sanitize_taxonomy_category_slug(
+        str(class_raw.get("category", "")),
+        min_len=cfg.taxonomy_auto_min_slug_len,
+        max_len=cfg.taxonomy_auto_max_slug_len,
+    )
+    if slug and slug in cats_lower:
+        return taxonomy, slug
+    if cfg.taxonomy_mode != "auto" or not slug or slug == "general":
+        return taxonomy, raw
+    if _merge_category_into_taxonomy_json(cfg.taxonomy_path, slug, max_categories=cfg.taxonomy_auto_max_categories):
+        taxonomy = _load_taxonomy(cfg)
+        if slug in {c.lower() for c in taxonomy.categories}:
+            return taxonomy, slug
+    return taxonomy, raw
 
 
 def _normalize_topic(value: str) -> str:
@@ -1677,6 +1800,8 @@ def build_obsidian_payload(
         except Exception:
             class_raw = {"category": "general", "subtopics": ["general"], "tags": ["topic/general"]}
 
+    taxonomy, category_candidate = _apply_taxonomy_auto_merge(class_raw, taxonomy, cfg)
+
     try:
         entities_raw = extract_entities(
             transcript,
@@ -1704,7 +1829,6 @@ def build_obsidian_payload(
         except Exception:
             entities_raw = []
 
-    category_candidate = str(class_raw.get("category", "general")).strip().lower() if isinstance(class_raw, dict) else "general"
     subtopics_candidate = class_raw.get("subtopics", []) if isinstance(class_raw, dict) else []
     validated_entities = _validate_graph_payload(
         classification_raw={"category": category_candidate, "subtopics": subtopics_candidate, "tags": class_raw.get("tags", []) if isinstance(class_raw, dict) else []},

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "stages": {
+    "llm/openrouter:openrouter/free": {
+      "llm_entities": [
+        0.0
+      ]
+    }
+  }
+}

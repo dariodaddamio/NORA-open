@@ -1,0 +1,26 @@
+{
+  "categories": [
+    "design",
+    "productivity",
+    "ai",
+    "marketing",
+    "business",
+    "coding",
+    "education",
+    "health",
+    "mindset",
+    "general"
+  ],
+  "tag_prefixes": [
+    "topic",
+    "domain",
+    "tool",
+    "format"
+  ],
+  "synonyms": {
+    "artificial intelligence": "ai",
+    "a.i.": "ai",
+    "ux": "user-experience",
+    "ui": "user-interface"
+  }
+}
