@@ -1,11 +1,17 @@
 # Troubleshooting
 
-Back to [README](../README.md)
+Back to main [README](../README.md)
 
 ## Commands do not appear
 
 - Ensure OAuth2 scope `applications.commands` was used when inviting the bot.
 - Wait ~30–60 seconds after `bot.py` startup for global command sync.
+
+## Multiple people, one server
+
+- **Where files go:** only on the computer running `bot.py`—see [setup.md — Shared servers](setup.md#shared-servers-where-notes-live).
+- **`/save`:** not limited to one at a time; several members can trigger saves concurrently (heavier load on the host). Same URL raced in parallel is rare but not mutex-protected.
+- **`/saveall`:** only one `/saveall` job per server at a time; a second attempt gets a “already running” message until it finishes.
 
 ## Failed to process link
 
@@ -41,7 +47,9 @@ Back to [README](../README.md)
 
 ## Summaries miss on-screen content
 
-- Enable visual path and try `FRAME_SAMPLING_MODE=scene` or higher `MAX_KEYFRAMES_ANALYZED`.
+- Expectations: OCR + text LLM is **not** a vision model—read [stack-and-costs.md](stack-and-costs.md#keyframes-and-ocr-limits-and-improvements).
+- Enable the visual path and try `FRAME_SAMPLING_MODE=scene` or higher `MAX_KEYFRAMES_ANALYZED`; check Tesseract and languages.
+- For real pixel-level understanding you need a **fork** that sends images to a vision-capable API (not configured via `.env` alone today).
 
 ## Weak or hallucinated claims
 
@@ -52,12 +60,14 @@ Back to [README](../README.md)
 
 ## Filename still has date prefix or wrong style
 
-- `ALLOW_FILENAME_DATE_PREFIX=false`, `TITLE_STYLE=clean`, `NOTE_FILENAME_STYLE=human`.
+- Date prefix: set `ALLOW_FILENAME_DATE_PREFIX=false`.
+- Readable vs slug stems: `NOTE_FILENAME_STYLE=human` or `slug`.
+- How the **title text** is chosen: see `TITLE_STYLE` in [configuration.md](configuration.md#discrete-string-options) (`clean` uses an extra LLM call; other modes do not).
 
 ## Migration did not rename old notes
 
 - `MIGRATE_EXISTING_NOTE_FILENAMES=true`
-- Remove `.filename_migration_done` in the vault root to force another pass (if your build uses that marker).
+- Remove `.filename_migration_done` in the **vault root** to force another pass.
 
 ## Quality tuning playbook
 

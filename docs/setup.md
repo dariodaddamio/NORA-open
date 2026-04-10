@@ -1,6 +1,8 @@
 # Setup
 
-Back to [README](../README.md)
+Back to main [README](../README.md)
+
+See also [open-private-workspace.md](open-private-workspace.md) for how the public mirror relates to a private dev tree and what never belongs on a public remote.
 
 ## Prerequisites
 
@@ -37,6 +39,16 @@ Re-invite the bot after scope or permission changes.
 ```
 
 On startup, slash commands sync. Use `/save` with an Instagram URL or `/saveall` in a channel.
+
+## Shared servers: where notes live
+
+NORA is **not** a hosted multi-user service. **Whoever runs `bot.py`** owns the pipeline:
+
+- All notes and assets go to **`OBSIDIAN_VAULT_PATH` on that host** (their disk).
+- **Other people in the same Discord server** can use slash commands too, but they **do not** receive copies of the Obsidian files—only what the bot posts in Discord (e.g. “Saved note: `...\something.md`”).
+- To let someone else use the same vault, you must **share access yourself** (Obsidian Sync, cloud folder, git, NAS, etc.) or they run **their own** bot + vault on their machine.
+
+If several members trigger `/save` at once, jobs can run in parallel on the host; see [troubleshooting.md](troubleshooting.md) if you need behavior details.
 
 ## Multi-device
 

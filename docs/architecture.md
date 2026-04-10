@@ -1,6 +1,6 @@
 # Architecture
 
-Back to [README](../README.md)
+Back to main [README](../README.md) · [How it works (diagrams)](how-it-works.md)
 
 ## Command layer (`bot.py`)
 
@@ -15,14 +15,14 @@ For each new URL (typical `PIPELINE_MODE=graph`):
 
 1. **Download** — `python -m yt_dlp` (portable across venv paths).
 2. **Optional metadata** — caption/title when caption context is enabled.
-3. **Keyframes + OCR** (if `VISUAL_CONTEXT_ENABLED`) — `ffmpeg` sampling, `tesseract` OCR, rank frames, build visual context and OCR–transcript alignment.
+3. **Keyframes + OCR** (if `VISUAL_CONTEXT_ENABLED`) — `ffmpeg` sampling, **Tesseract** OCR on JPEGs; **only OCR text** (not raw images) is fed into later LLM prompts. Rank frames, build visual context string and OCR–transcript alignment. Selected frames are still saved under `Assets/Instagram/...` for the note.
 4. **Audio extraction** — `ffmpeg` to mono 16 kHz WAV.
 5. **Transcription** — `faster-whisper` (local).
 6. **Gates** — transcript quality; transcript–caption alignment; outcomes:
    - Normal (transcript usable)
    - Caption-primary (weak transcript, strong caption)
    - Blocked → Discord message + optional **Try anyway** (`TRANSCRIPT_GATE_ALLOW_FORCE`)
-7. **Knowledge enrichment** — classify taxonomy, extract entities, generate markdown summary (multimodal prompts); optional verification and contradiction rewrite. If `TAXONOMY_MODE=auto`, a novel sanitized category is merged into `TAXONOMY_PATH` and taxonomy is reloaded before entity extraction and summary.
+7. **Knowledge enrichment** — classify taxonomy, extract entities, generate markdown summary (**text-only** LLM calls: transcript, caption, and OCR-derived “visual context”); optional verification and contradiction rewrite. If `TAXONOMY_MODE=auto`, a novel sanitized category is merged into `TAXONOMY_PATH` and taxonomy is reloaded before entity extraction and summary.
 8. **Graph write** — video note, topic notes, entity notes, category index; persist selected frames under `Assets/Instagram/...`.
 
 If `PIPELINE_MODE=basic`, pipeline collapses to single-note summarization (`summary:basic` LLM stage).
@@ -36,7 +36,7 @@ If `PIPELINE_MODE=basic`, pipeline collapses to single-note summarization (`summ
 ## AI routing
 
 - **OpenRouter** when `OPENROUTER_API_KEY` is set.
-- **Ollama** at `http://localhost:11434` when the key is absent.
+- **Ollama** when the key is absent: requests go to `http://localhost:11434/api/generate` (host is **not** configurable via `.env` today).
 - Prompts are size-bounded; malformed JSON may trigger a **repair** LLM pass, then safe fallbacks.
 
 ## LLM stages and logging
@@ -55,7 +55,7 @@ Each completion logs:
 | `classify` | Taxonomy classification |
 | `entities` | Entity extraction |
 | `summary` | Markdown summary |
-| `title` | Clean title for filename |
+| `title` | Note title via LLM (**only** when `TITLE_STYLE=clean`; otherwise titles are heuristic / summary heading / category without this stage) |
 | `verify` | If `CONSISTENCY_CHECK_ENABLED` |
 | `rewrite:contradictions` | If rewrite enabled and contradictions found |
 | `repair:classification`, `repair:entities`, `repair:verification` | Malformed model output |

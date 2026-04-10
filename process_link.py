@@ -312,6 +312,27 @@ def _llm_stage_summary() -> str:
     return f"[LLM] SUMMARY calls={total_calls} elapsed={total_elapsed:.2f}s stages={stage_text}"
 
 
+def _parse_title_style(raw: Optional[str]) -> str:
+    """Normalize TITLE_STYLE env to clean | heuristic | summary_heading | category."""
+    s = (raw or "").strip().lower() or "clean"
+    aliases = {
+        "fallback": "heuristic",
+        "keywords": "heuristic",
+        "messy": "heuristic",
+        "summary": "summary_heading",
+    }
+    s = aliases.get(s, s)
+    valid = frozenset({"clean", "heuristic", "summary_heading", "category"})
+    if s in valid:
+        return s
+    print(
+        "[CONFIG] TITLE_STYLE="
+        f"{raw!r} is not recognized; valid: clean, heuristic, summary_heading, category "
+        "(aliases: fallback, keywords, messy → heuristic; summary → summary_heading). Using heuristic."
+    )
+    return "heuristic"
+
+
 def _cfg() -> PipelineConfig:
     vault = Path(os.environ["OBSIDIAN_VAULT_PATH"])
     model = os.getenv("OLLAMA_MODEL", "llama3.1")
@@ -353,7 +374,7 @@ def _cfg() -> PipelineConfig:
         consistency_check_enabled=os.getenv("CONSISTENCY_CHECK_ENABLED", "true").strip().lower() in {"1", "true", "yes", "y"},
         min_alignment_score_for_strict_mode=max(0.0, min(1.0, float(os.getenv("MIN_ALIGNMENT_SCORE_FOR_STRICT_MODE", "0.25")))),
         rewrite_contradicted_claims=os.getenv("REWRITE_CONTRADICTED_CLAIMS", "false").strip().lower() in {"1", "true", "yes", "y"},
-        title_style=(os.getenv("TITLE_STYLE", "clean").strip().lower() or "clean"),
+        title_style=_parse_title_style(os.getenv("TITLE_STYLE", "clean")),
         allow_filename_date_prefix=os.getenv("ALLOW_FILENAME_DATE_PREFIX", "false").strip().lower() in {"1", "true", "yes", "y"},
         note_filename_style=(os.getenv("NOTE_FILENAME_STYLE", "human").strip().lower() or "human"),
         migrate_existing_note_filenames=os.getenv("MIGRATE_EXISTING_NOTE_FILENAMES", "true").strip().lower() in {"1", "true", "yes", "y"},
@@ -1318,7 +1339,21 @@ def generate_clean_title(
     else:
         fallback_seed = category or "Untitled Note"
     fallback = _clean_title_text(fallback_seed)
-    if cfg.title_style != "clean":
+    style = cfg.title_style
+    if style == "category":
+        seed = (category or "").strip() or fallback_seed
+        return _clean_title_text(seed), "category"
+    if style == "summary_heading":
+        m = re.search(r"^\s*#\s+(.+?)\s*$", summary_md or "", flags=re.MULTILINE)
+        if m:
+            raw_h1 = m.group(1).strip().strip('"')
+            t = _clean_title_text(raw_h1)
+            if t.lower() not in {"untitled note", "instagram", "tutorial", "guide", "workflow tutorial"}:
+                return t, "summary_heading"
+        return fallback, "fallback"
+    if style == "heuristic":
+        return fallback, "heuristic"
+    if style != "clean":
         return fallback, "fallback"
     prompt = f"""Generate a concise note title for an instructional social video.
 Rules:

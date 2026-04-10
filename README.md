@@ -1,6 +1,6 @@
-# NORA
+# NORA - Notes for Obsidian from Reels using AI
 
-**Turn Instagram reels into linked Obsidian notes from Discord** — structured summaries, topics, entities, and optional on-screen context — without losing the reel in your scroll history.
+A local Discord Bot pipeline to turn your doom scrolling into an Obsidian knowledge base.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Discord](https://img.shields.io/badge/chat-Discord-5865F2.svg)](https://discord.com/developers/applications)
@@ -8,71 +8,36 @@
 
 ## Why NORA
 
-- **Problem:** Saved reels are easy to lose; plain transcripts miss what is *shown* on screen; music-only or mismatched audio produces useless “summaries.”
-- **Outcome:** With default **`PIPELINE_MODE=graph`**, each `/save` produces a **hub video note** wired into **Topics**, **Entities**, and **category indexes**, with optional **keyframes + OCR** embedded in the note. With **`PIPELINE_MODE=basic`**, you get a **single** summary note per reel instead (see [Architecture](docs/architecture.md)).
+- **Motivation:** The Saved Collections feature in Instagram is so hidden and disorganized that I've resorted to sharing links of Instagram reels in my private Discord server, in hopes of referring to them later on... Of course, this was rarely the case. I would end up lost in a sea of links, which were supposed to be organized categories, frantically trying to find a tutorial about Photoshop, a movie recommendation, or even a recipe.
+- **Outcome:** This eventually inspired NORA, a way to summarize what's in those reels into a structured, interconnected Obsidian vault.
 - **Non-goals:** NORA is not a full social archive, hosted backup service, or guaranteed legal/compliance layer for third-party content — you own your vault and tooling choices.
+- **Expansion:** Despite the local limitations, you're free to build on top of this architecture—hosting, sync, extra automation, different models, or anything else your workflow needs.
 
-**Documentation:** [Setup](docs/setup.md) · [Configuration](docs/configuration.md) · [Architecture](docs/architecture.md) · [Vault output](docs/vault-output.md) · [Troubleshooting](docs/troubleshooting.md) · [All docs](docs/README.md)
+## Quickstart
 
-## How it works
+**Goal:** run the bot on your PC so **Discord slash commands** (e.g. `/save`, `/saveall`) run the pipeline and write notes into a folder you choose (typically an [Obsidian](https://obsidian.md/) vault). Use **[NORA-open](https://github.com/dariodaddamio/NORA-open)** or any clone; remember to keep **`.env` and your vault off GitHub.**
 
-### System context
+**Who gets the files:** markdown and assets are written only on **the machine that runs `bot.py`**, under **`OBSIDIAN_VAULT_PATH`**. Everyone else in the server sees **Discord replies** (paths, errors, progress)—not your vault—unless you share that folder yourself (sync, git, network drive, etc.). Details: [docs/setup.md#shared-servers-where-notes-live](docs/setup.md#shared-servers-where-notes-live).
 
-```mermaid
-flowchart LR
-  discord[Discord_slash_commands] --> bot[bot_py]
-  bot --> ytdlp[yt_dlp_download]
-  bot --> ffmpeg[ffmpeg_audio_frames]
-  bot --> whisper[faster_whisper]
-  bot --> ocr[tesseract_OCR_optional]
-  bot --> llm[OpenRouter_or_Ollama]
-  bot --> vault[Obsidian_vault_markdown]
-```
+### 0. What you need installed
 
-### Pipeline and gates
+| Requirement | Why |
+|-------------|-----|
+| **Python 3.10+** | Runs the bot and pipeline |
+| **[ffmpeg](https://ffmpeg.org/)** on your PATH | Extracts audio from reels (`ffmpeg -version` should work) |
+| **A Discord bot** | Slash commands and replies |
+| **A folder for notes** | `OBSIDIAN_VAULT_PATH` — vault **root** folder (the one that contains or will contain `Instagram Notes/`, not the `.obsidian` folder) |
+| **An LLM (pick one)** | **OpenRouter** (API key, optional free models) **or** **Ollama** (local, no OpenRouter key) |
 
-```mermaid
-flowchart TD
-  A[Download_video] --> B[Keyframes_OCR_optional]
-  B --> C[Extract_audio]
-  C --> D[Transcribe_local_Whisper]
-  D --> E{Transcript_and_caption_gates}
-  E -->|ok_or_caption_primary| F[LLM_classify_entities_summary_title]
-  F --> G[Optional_verify_and_rewrite]
-  G --> H[Write_graph_notes_and_assets]
-  E -->|blocked| I[Discord_Try_anyway]
-```
+First run will download Whisper weights and can take a few minutes. Optional extras (OCR, stronger models): [docs/setup.md](docs/setup.md).
 
-For stage-by-stage detail, LLM labels, and repair paths, see [Architecture](docs/architecture.md).
+**Note:** By default, “visual” context is **keyframes + Tesseract OCR**—the LLM gets **OCR text** in its prompts, not images through a vision model, so results can be thin or noisy on busy or stylized reels. Install Tesseract for that path (see [docs/setup.md](docs/setup.md)); disable it with `VISUAL_CONTEXT_ENABLED=false` in `.env` ([docs/configuration.md#visual-keyframes-and-ocr](docs/configuration.md#visual-keyframes-and-ocr)). Limits and improvement options: [docs/stack-and-costs.md#keyframes-and-ocr-limits-and-improvements](docs/stack-and-costs.md#keyframes-and-ocr-limits-and-improvements).
 
-## Public source vs private workspace
-
-This project is often maintained as **NORA-private** (full dev tree) with an optional sanitized mirror (**NORA-open**) for sharing code without personal data. The mirror workflow excludes paths listed in [`.public-export-ignore`](.public-export-ignore), including:
-
-- **Secrets and local state:** `.env`, `.venv`, `processed.json`
-- **Personal content:** `vault/`, `NORA.md`, `agent-transcripts`
-- **CI that publishes the mirror:** `.github/` (workflows live in the private repo only)
-- **Tests and tooling:** `tests/`, `.cursor/`
-- **Optional config file in mirror:** `taxonomy.json` (personal; defaults in code if absent). **`taxonomy.example.json`** is included as a copy-paste starter.
-
-**NORA-open** clones get application code, **`docs/`**, and **`.env.example`**. **NORA-private** may include a vault, cookies, transcripts, and the publish workflow. Do not commit secrets or your Obsidian vault to a public remote.
-
-## Free stack vs paid / cloud
-
-| Tier | What runs where | When to use |
-|------|-----------------|-------------|
-| **Default (low recurring cost)** | Local: `ffmpeg`, `faster-whisper`, optional `tesseract`. LLM: **OpenRouter** (pick a model — free tiers vary by provider). | Day-to-day; good balance of quality and cost. |
-| **Stronger summaries** | Same local stack; set `OPENROUTER_MODEL` to a **paid / stronger** model on OpenRouter. | When free models are too vague or inconsistent. |
-| **Local / privacy LLM** | Omit `OPENROUTER_API_KEY`; use **Ollama** (`OLLAMA_MODEL`). | Keep prompts and completions on your machine. |
-| **More cloud (extension point)** | Today, speech-to-text is **local Whisper**. A fully hosted pipeline would swap `transcribe_audio` in `process_link.py` for a cloud STT API — not shipped as a preset, but that is the natural seam if you want zero local ML. | Advanced self-hosting or fork. |
-
-OpenRouter billing and model availability are defined by their service; local tools need Python, ffmpeg, and (for OCR) Tesseract on your PATH or via `OCR_TESSERACT_CMD`.
-
-## Quick start
-
-1. **Environment**
+### 1. Clone and install
 
 ```powershell
+git clone https://github.com/dariodaddamio/NORA-open.git
+cd NORA-open
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -80,50 +45,62 @@ pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-2. **Required in `.env`**
+*(On macOS/Linux, use `source .venv/bin/activate` instead of `Activate.ps1`.)*
 
-- `DISCORD_TOKEN`
-- `OBSIDIAN_VAULT_PATH` (vault **root**, not `.obsidian`)
-- `OPENROUTER_API_KEY` (recommended) — or leave empty and use Ollama
+### 2. Create a Discord bot and token
 
-3. **Run**
+1. Open the [Discord Developer Portal](https://discord.com/developers/applications) → **New Application** → name it → open **Bot** → **Add Bot** → under **Token**, **Reset Token** and copy it (this value is `DISCORD_TOKEN` in `.env`). **Never commit it.**
+2. In **Bot**, enable **Message Content Intent** (needed for `/saveall` channel scans).
+3. Open **OAuth2 → URL Generator**: scopes **`bot`** and **`applications.commands`**. Choose bot permissions (at minimum: View Channels, Send Messages, Read Message History). Open the generated URL, pick your server, invite the bot.
+
+Screenshots, re-invite, and permission detail: **[docs/setup.md](docs/setup.md)**.
+
+### 3. Point NORA at your vault folder
+
+Create or choose a folder (e.g. `C:\Users\you\Documents\MyVault`). Put its **absolute path** in `.env` as `OBSIDIAN_VAULT_PATH`. The bot will create `Instagram Notes/` and related folders there on first success.
+
+### 4. Add an LLM (OpenRouter *or* Ollama)
+
+**Option A — OpenRouter (cloud, includes free models)**
+
+1. Sign up at [openrouter.ai](https://openrouter.ai/), then open **[Keys](https://openrouter.ai/keys)** and create an API key.
+2. In `.env`, set `OPENROUTER_API_KEY=` to that key (no quotes needed unless your editor adds them).
+3. Leave `OPENROUTER_MODEL=openrouter/free` to start (free-tier availability changes over time; you can swap the id for any model listed on OpenRouter). Billing and limits are on their site.
+
+**Option B — Ollama (local, no OpenRouter)**
+
+1. Install [Ollama](https://ollama.com/) and pull a model, e.g. `ollama pull llama3.1`.
+2. In `.env`, **leave `OPENROUTER_API_KEY` empty** (or delete the value after the `=`).
+3. Set `OLLAMA_MODEL` to match what you pulled (e.g. `llama3.1`; the pipeline normalizes to `llama3.1:latest` when needed). Keep Ollama running while you use the bot.
+
+More on cost vs privacy: **[docs/stack-and-costs.md](docs/stack-and-costs.md)**. All env vars: **[docs/configuration.md](docs/configuration.md)**.
+
+### 5. Run the bot
 
 ```powershell
 .\.venv\Scripts\python bot.py
 ```
 
-4. **Discord:** `/save url:https://www.instagram.com/reel/...` or `/saveall`
+Wait until the process stays running with no traceback. Slash commands can take **~30–60s** after startup to appear in Discord.
 
-Full prerequisites, Discord Developer Portal settings, and intents: [docs/setup.md](docs/setup.md).
+### 6. Try it
 
-## Extending NORA
+In your server, run **`/save`** and paste an Instagram reel URL, or **`/saveall`** in a channel to scan history. If something fails, start with **[docs/troubleshooting.md](docs/troubleshooting.md)**.
 
-| Hook | Primary location | Idea |
-|------|------------------|------|
-| Slash commands, Discord UX | `bot.py` | New commands, views, progress messages |
-| Pipeline: download, transcribe, gates, LLM, writers | `process_link.py` | New sources, prompts, stages, STT backend swap |
-| Categories and tag rules | `taxonomy.json` (copy from `taxonomy.example.json` if you want a starter file; not shipped in public mirror) | Your vocabulary and synonyms; `TAXONOMY_MODE=auto` appends new categories |
-| Note shape and graph links | Writers in `process_link.py` (`_write_graph_notes`, etc.) | Extra folders, frontmatter, sections |
-| Quality / gates | Env vars + `assess_*` / `build_obsidian_payload` | Stricter transcript or caption rules |
+## Documentation
 
-## Configuration (short)
+| Doc | What it covers |
+|-----|----------------|
+| [docs/setup.md](docs/setup.md) | Prerequisites, install, Discord portal detail, run, multi-device |
+| [docs/how-it-works.md](docs/how-it-works.md) | High-level flow diagrams; link into the pipeline |
+| [docs/architecture.md](docs/architecture.md) | Pipeline stages, gates, LLM stages, idempotency, temp |
+| [docs/configuration.md](docs/configuration.md) | Environment variables, discrete modes (`TITLE_STYLE`, pipeline, OCR), tuning notes |
+| [docs/vault-output.md](docs/vault-output.md) | Vault folders, note sections, frontmatter, taxonomy |
+| [docs/stack-and-costs.md](docs/stack-and-costs.md) | Local vs cloud LLM, cost tiers, OCR limits vs real vision, extension points |
+| [docs/open-private-workspace.md](docs/open-private-workspace.md) | NORA-open vs private workspace, mirror excludes, staying safe |
+| [docs/extending.md](docs/extending.md) | Where to hook code and main files |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Common failures and quality tuning |
 
-- **Reference:** [docs/configuration.md](docs/configuration.md) and [`.env.example`](.env.example).
-- **Minimum:** `DISCORD_TOKEN`, `OBSIDIAN_VAULT_PATH`, and either `OPENROUTER_API_KEY` or Ollama configured.
+**Index:** [docs/README.md](docs/README.md)
 
-## Troubleshooting (quick)
-
-- **Slash commands missing:** use `applications.commands` scope; wait ~30–60s after startup — [details](docs/troubleshooting.md#commands-do-not-appear).
-- **`Failed to process link`:** check OpenRouter or Ollama, `ffmpeg`, and `python -m yt_dlp` in the same venv.
-- **Notes not in vault:** `OBSIDIAN_VAULT_PATH` must be the vault root; see [Troubleshooting](docs/troubleshooting.md).
-- **Downloads fail:** update `yt-dlp`; try `YTDLP_COOKIES_FROM_BROWSER` or `YTDLP_COOKIES_FILE`.
-- **Weak or wrong summaries:** tune gates and models — [Quality tuning](docs/troubleshooting.md#quality-tuning-playbook).
-
-## Files of interest
-
-- `bot.py` — Discord entrypoints
-- `process_link.py` — pipeline, multimodal path, note writers
-- `taxonomy.example.json` — starter taxonomy (safe to ship publicly); copy to `taxonomy.json` to customize
-- `taxonomy.json` — your categories (optional; built-in defaults if absent; omitted from public mirror export)
-- `.env.example` — env template
-- `processed.json` — URL dedupe (local; do not publish with private vault)
+**Issues and ideas:** [NORA-open issues](https://github.com/dariodaddamio/NORA-open/issues) — bug reports and feature suggestions welcome there.

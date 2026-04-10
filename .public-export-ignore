@@ -1,0 +1,17 @@
+# taxonomy.example.json is not listed so it ships in the public mirror as a starter template.
+# This file itself is NOT listed below so it is copied into NORA-open — readers can see what publish excludes.
+.git
+.github
+.env
+.venv
+__pycache__
+*.pyc
+temp
+logs
+vault
+processed.json
+NORA.md
+agent-transcripts
+taxonomy.json
+.cursor
+tests

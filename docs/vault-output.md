@@ -1,6 +1,6 @@
 # Vault output
 
-Back to [README](../README.md)
+Back to main [README](../README.md)
 
 ## Folder layout
 
@@ -38,7 +38,7 @@ Common fields include:
 
 - `type`: `video-note`
 - `source_url`, `created_at`
-- `title_generated_by` (`llm` | `fallback`)
+- `title_generated_by` — `llm` (title LLM, `TITLE_STYLE=clean`), `heuristic`, `category`, `summary_heading`, or `fallback` (includes failed LLM title, failed summary-heading pick, or repair short-circuit)
 - `alignment_score`
 - `verification_supported_count`, `verification_uncertain_count`, `verification_contradicted_count`
 - `category`, `subtopics`, `entities`, `tags`, `status`
@@ -70,4 +70,4 @@ Tips: keep categories lowercase and stable; prefer synonyms over duplicate categ
 
 ## Visual context
 
-When enabled: keyframes via `ffmpeg`, OCR via `tesseract`, rank by text richness and time spread, embed top 1–3 images. If OCR fails, transcript-only context still runs.
+When enabled: keyframes via `ffmpeg`, OCR via **Tesseract** (not a learned vision model), rank by text richness and time spread, embed top 1–3 images in the note. The LLM stages only see **OCR text** in their prompts, not the JPEG pixels. If OCR fails, transcript-only context still runs. Limits and upgrade paths (stronger text models, vision APIs, forks): [stack-and-costs.md](stack-and-costs.md#keyframes-and-ocr-limits-and-improvements).
