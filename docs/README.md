@@ -16,4 +16,4 @@ The published open repository includes this **`docs/`** tree. What is excluded f
 | [extending.md](extending.md) | Hooks, files of interest |
 | [troubleshooting.md](troubleshooting.md) | Common failures and quality tuning |
 
-**Feedback and contributions:** Open [issues](https://github.com/dariodaddamio/NORA-open/issues) (and pull requests, if enabled) on **NORA-open**.
+**Feedback and contributions:** Open [issues](https://github.com/dariodaddamio/NORA-open/issues) and pull requests on **NORA-open**. See [CONTRIBUTING.md](../CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) at the repo root.

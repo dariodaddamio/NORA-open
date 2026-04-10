@@ -104,3 +104,5 @@ In your server, run **`/save`** and paste an Instagram reel URL, or **`/saveall`
 **Index:** [docs/README.md](docs/README.md)
 
 **Issues and ideas:** [NORA-open issues](https://github.com/dariodaddamio/NORA-open/issues) — bug reports and feature suggestions welcome there.
+
+**License:** [MIT](LICENSE) · **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) · **Code of conduct:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)

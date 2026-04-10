@@ -10,13 +10,13 @@ Publishing uses `rsync` with **`--exclude-from=.public-export-ignore`** (in the 
 
 Paths **omitted** from the mirror (see [`.public-export-ignore`](../.public-export-ignore) in either tree):
 
-- **Secrets and local state:** `.env`, `.venv`, `processed.json`
+- **Secrets and local state:** `.env`, `.venv`, `processed.json`, `eta-history.json` (adaptive ETA timings; not the committed **`eta-history.example.json`** template)
 - **Personal content:** `vault/`, `NORA.md`, `agent-transcripts`
 - **CI that publishes the mirror:** `.github/` (workflows typically live in the private repo only)
 - **Tests and tooling:** `tests/`, `.cursor/`
 - **Personal taxonomy:** `taxonomy.json` (defaults in code if absent). **`taxonomy.example.json`** is **not** ignored so it ships as a copy-paste starter.
 
-**NORA-open** clones get application code, **`docs/`**, **`.env.example`**, and **`.public-export-ignore`**. **NORA-private** may include a vault, cookies, transcripts, the **`tests/`** tree, and the full **`.github/`** publish workflow.
+**NORA-open** clones get application code, **`docs/`**, **`.env.example`**, **`.public-export-ignore`**, **`eta-history.example.json`** (empty ETA history shape), **`taxonomy.example.json`**, and OSS meta files (**`LICENSE`**, **`CONTRIBUTING.md`**, **`CODE_OF_CONDUCT.md`**). **NORA-private** may include a vault, cookies, transcripts, the **`tests/`** tree, and the full **`.github/`** publish workflow.
 
 ## Tests (private tree only)
 

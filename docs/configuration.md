@@ -160,7 +160,7 @@ Copy [`taxonomy.example.json`](../taxonomy.example.json) to `taxonomy.json` when
 | `ETA_BASE_SECONDS` | Fixed overhead in estimates ([tuning](#turning-knobs-higher-vs-lower)) |
 | `ETA_PER_VIDEO_SECOND` | Per-second-of-video multiplier ([tuning](#turning-knobs-higher-vs-lower)) |
 | `ETA_LLM_OVERHEAD_SECONDS` | Extra budget for LLM stages ([tuning](#turning-knobs-higher-vs-lower)) |
-| `ETA_HISTORY_PATH` | JSON file for adaptive timing history |
+| `ETA_HISTORY_PATH` | JSON file NORA **creates and updates** on disk: it appends **per-stage durations** (seconds) after LLM calls, keyed by provider/model (e.g. `llm/openrouter:openrouter/free`) and stage name (`llm_entities`, …). Used to refine Discord ETAs once `ETA_MIN_SAMPLES` samples exist. Values of **`0.0`** mean that run recorded no measurable wall time (very fast response, test/mocked run, or timer granularity). Safe to delete the real file to reset. **Do not commit** the live file—see [`.gitignore`](../.gitignore) and [`.public-export-ignore`](../.public-export-ignore). Empty shape reference: [`eta-history.example.json`](../eta-history.example.json). |
 | `ETA_HISTORY_WINDOW` | Max samples per stage |
 | `ETA_MIN_SAMPLES` | Samples before history overrides defaults |
 | `ETA_QUANTILE` | Quantile over past stage durations for conservative ETAs ([tuning](#turning-knobs-higher-vs-lower)) |
