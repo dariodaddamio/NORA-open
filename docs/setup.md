@@ -45,7 +45,7 @@ On startup, slash commands sync. Use `/save` with an Instagram URL or `/saveall`
 NORA is **not** a hosted multi-user service. **Whoever runs `bot.py`** owns the pipeline:
 
 - All notes and assets go to **`OBSIDIAN_VAULT_PATH` on that host** (their disk).
-- **Other people in the same Discord server** can use slash commands too, but they **do not** receive copies of the Obsidian files—only what the bot posts in Discord (e.g. “Saved note: `...\something.md`”).
+- **Other people in the same Discord server** can use slash commands too, but they **do not** receive copies of the Obsidian files. Only what the bot posts in Discord (e.g. “Saved note: `...\something.md`”).
 - To let someone else use the same vault, you must **share access yourself** (Obsidian Sync, cloud folder, git, NAS, etc.) or they run **their own** bot + vault on their machine.
 
 If several members trigger `/save` at once, jobs can run in parallel on the host; see [troubleshooting.md](troubleshooting.md) if you need behavior details.
@@ -59,4 +59,4 @@ If several members trigger `/save` at once, jobs can run in parallel on the host
 ## Daily usage
 
 - `/save url:https://www.instagram.com/reel/...`
-- `/saveall` — optional parameters: `max_messages`, `max_new_links`, `oldest_first` (see `SAVEALL_*` in [.env.example](../.env.example))
+- `/saveall`: optional parameters: `max_messages`, `max_new_links`, `oldest_first` (see `SAVEALL_*` in [.env.example](../.env.example))

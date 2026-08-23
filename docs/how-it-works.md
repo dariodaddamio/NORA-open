@@ -2,7 +2,7 @@
 
 Back to main [README](../README.md) · [All docs](README.md)
 
-NORA is a local pipeline: Discord triggers a download of the reel, optional **keyframes + Tesseract OCR** (text snippets into prompts, not a vision model), local transcription, quality gates, then text LLM steps that classify and summarize into markdown your Obsidian vault can link together.
+NORA is a local pipeline: Discord triggers a download of the reel, optional **keyframes + Tesseract OCR** (text snippets into prompts. The pipeline does not use a vision model), local transcription, quality gates, then text LLM steps that classify and summarize into markdown your Obsidian vault can link together.
 
 ## System context
 

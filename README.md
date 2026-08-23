@@ -10,8 +10,8 @@ A local Discord Bot pipeline to turn your doom scrolling into an Obsidian knowle
 
 - **Motivation:** The Saved Collections feature in Instagram is so hidden and disorganized that I've resorted to sharing links of Instagram reels in my private Discord server, in hopes of referring to them later on... Of course, this was rarely the case. I would end up lost in a sea of links, which were supposed to be organized categories, frantically trying to find a tutorial about Photoshop, a movie recommendation, or even a recipe.
 - **Outcome:** This eventually inspired NORA, a way to summarize what's in those reels into a structured, interconnected Obsidian vault.
-- **Non-goals:** NORA is not a full social archive, hosted backup service, or guaranteed legal/compliance layer for third-party content — you own your vault and tooling choices.
-- **Expansion:** Despite the local limitations, you're free to build on top of this architecture—hosting, sync, extra automation, different models, or anything else your workflow needs.
+- **Non-goals:** NORA is not a full social archive, hosted backup service, or guaranteed legal/compliance layer for third-party content: you own your vault and tooling choices.
+- **Expansion:** Despite the local limitations, you're free to build on top of this architecture. Hosting, sync, extra automation, different models, or anything else your workflow needs.
 
 ## Quickstart
 
@@ -24,14 +24,14 @@ A local Discord Bot pipeline to turn your doom scrolling into an Obsidian knowle
 | Requirement | Why |
 |-------------|-----|
 | **Python 3.10+** | Runs the bot and pipeline |
-| **[ffmpeg](https://ffmpeg.org/)** | Normally on `PATH` (`ffmpeg -version`). If the IDE terminal does not see it (common on Windows), set `FFMPEG_PATH` and `FFPROBE_PATH` in `.env` — see [Visual / OCR env](docs/configuration.md#visual-keyframes-and-ocr). |
+| **[ffmpeg](https://ffmpeg.org/)** | Normally on `PATH` (`ffmpeg -version`). If the IDE terminal does not see it (common on Windows), set `FFMPEG_PATH` and `FFPROBE_PATH` in `.env`: see [Visual / OCR env](docs/configuration.md#visual-keyframes-and-ocr). |
 | **A Discord bot** | Slash commands and replies |
-| **A folder for notes** | `OBSIDIAN_VAULT_PATH` — vault **root** folder (the one that contains or will contain `Instagram Notes/`, not the `.obsidian` folder) |
+| **A folder for notes** | `OBSIDIAN_VAULT_PATH`: vault **root** folder (the one that contains or will contain ``Instagram Notes/`. Use the vault root, not the `.obsidian` folder) |
 | **An LLM (pick one)** | **OpenRouter** (API key, optional free models) **or** **Ollama** (local, no OpenRouter key) |
 
 First run will download Whisper weights and can take a few minutes. Optional extras (OCR, stronger models): [docs/setup.md](docs/setup.md).
 
-**Note:** By default, “visual” context is **keyframes + Tesseract OCR**—the LLM gets **OCR text** in its prompts, not images through a vision model, so results can be thin or noisy on busy or stylized reels. Install Tesseract for that path (see [docs/setup.md](docs/setup.md)); disable it with `VISUAL_CONTEXT_ENABLED=false` in `.env` ([docs/configuration.md#visual-keyframes-and-ocr](docs/configuration.md#visual-keyframes-and-ocr)). Limits and improvement options: [docs/stack-and-costs.md#keyframes-and-ocr-limits-and-improvements](docs/stack-and-costs.md#keyframes-and-ocr-limits-and-improvements).
+**Note:** By default, “visual” context is **keyframes + Tesseract OCR**. The LLM gets **OCR text** in its prompts. It does not receive images through a vision model, so results can be thin or noisy on busy or stylized reels. Install Tesseract for that path (see [docs/setup.md](docs/setup.md)); disable it with `VISUAL_CONTEXT_ENABLED=false` in `.env` ([docs/configuration.md#visual-keyframes-and-ocr](docs/configuration.md#visual-keyframes-and-ocr)). Limits and improvement options: [docs/stack-and-costs.md#keyframes-and-ocr-limits-and-improvements](docs/stack-and-costs.md#keyframes-and-ocr-limits-and-improvements).
 
 ### 1. Clone and install
 
@@ -61,13 +61,13 @@ Create or choose a folder (e.g. `C:\Users\you\Documents\MyVault`). Put its **abs
 
 ### 4. Add an LLM (OpenRouter *or* Ollama)
 
-**Option A — OpenRouter (cloud, includes free models)**
+**Option A:** OpenRouter (cloud, includes free models)**
 
 1. Sign up at [openrouter.ai](https://openrouter.ai/), then open **[Keys](https://openrouter.ai/keys)** and create an API key.
 2. In `.env`, set `OPENROUTER_API_KEY=` to that key (no quotes needed unless your editor adds them).
 3. Leave `OPENROUTER_MODEL=openrouter/free` to start (free-tier availability changes over time; you can swap the id for any model listed on OpenRouter). Billing and limits are on their site.
 
-**Option B — Ollama (local, no OpenRouter)**
+**Option B:** Ollama (local, no OpenRouter)**
 
 1. Install [Ollama](https://ollama.com/) and pull a model, e.g. `ollama pull llama3.1`.
 2. In `.env`, **leave `OPENROUTER_API_KEY` empty** (or delete the value after the `=`).
@@ -105,6 +105,6 @@ In your server, run **`/save`** and paste an Instagram reel URL, or **`/saveall`
 
 **Local research notes (this workspace):** [Solutions-MicroHX-Grasp-Align.md](Solutions-MicroHX-Grasp-Align.md) (microtube heat exchanger grasp/alignment nuggets), [Solutions3.md](Solutions3.md) (broader PS3 manufacturing/digital-thread nuggets).
 
-**Issues and ideas:** [NORA-open issues](https://github.com/dariodaddamio/NORA-open/issues) — bug reports and feature suggestions welcome there.
+**Issues and ideas:** [NORA-open issues](https://github.com/dariodaddamio/NORA-open/issues): bug reports and feature suggestions welcome there.
 
 **License:** [MIT](LICENSE) · **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md) · **Code of conduct:** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)

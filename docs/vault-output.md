@@ -38,7 +38,7 @@ Common fields include:
 
 - `type`: `video-note`
 - `source_url`, `created_at`
-- `title_generated_by` — `llm` (title LLM, `TITLE_STYLE=clean`), `heuristic`, `category`, `summary_heading`, or `fallback` (includes failed LLM title, failed summary-heading pick, or repair short-circuit)
+- `title_generated_by`: `llm` (title LLM, `TITLE_STYLE=clean`), `heuristic`, `category`, `summary_heading`, or `fallback` (includes failed LLM title, failed summary-heading pick, or repair short-circuit)
 - `alignment_score`
 - `verification_supported_count`, `verification_uncertain_count`, `verification_contradicted_count`
 - `category`, `subtopics`, `entities`, `tags`, `status`
@@ -58,13 +58,13 @@ To customize categories and tags, **create** `taxonomy.json` at the **project ro
 
 With **`TAXONOMY_MODE=auto`**, when the classifier returns a category that is not in the loaded list, NORA **sanitizes** it (slug-style `a-z`, `0-9`, hyphens) and **appends** it to `TAXONOMY_PATH`, then reloads taxonomy for the same run. If the file is at **`TAXONOMY_AUTO_MAX_CATEGORIES`** or the label is invalid, the note still saves but the category falls back to **`general`** (same as `static` mode). Concurrent bot processes with `auto` are best-effort only.
 
-The **public mirror** repo typically does **not** include personal `taxonomy.json` (it is excluded from export); **`taxonomy.example.json`** is included as a template.
+Copy **`taxonomy.example.json`** to **`taxonomy.json`** at the project root when you want a custom vocabulary. Keep your personal `taxonomy.json` local and out of git.
 
 Shape:
 
-- `categories` — top-level buckets
-- `tag_prefixes` — e.g. `topic`, `domain`, `tool`, `format`
-- `synonyms` — normalization (e.g. `artificial intelligence` → `ai`)
+- `categories`: top-level buckets
+- `tag_prefixes`: e.g. `topic`, `domain`, `tool`, `format`
+- `synonyms`: normalization (e.g. `artificial intelligence` → `ai`)
 
 Tips: keep categories lowercase and stable; prefer synonyms over duplicate categories; keep categories broad.
 

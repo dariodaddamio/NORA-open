@@ -4,7 +4,7 @@ Back to main [README](../README.md)
 
 Full template: [`.env.example`](../.env.example). Below is a grouped reference; uncomment or add variables as needed.
 
-**Where “allowed values” come from:** Enum-style strings are interpreted in [`process_link.py`](../process_link.py) (`_cfg()` and related helpers)—there is no separate config schema file. If you set an unknown value, behavior falls through to the default branch (e.g. only `graph` enables graph mode; only `scene` switches scene-based keyframes; only `slug` switches slug filenames). **`TITLE_STYLE`** is validated: unknown values log a config warning and map to **`heuristic`**. **Booleans** accept `true` / `false` / `1` / `yes` / `y` (case-insensitive).
+**Where “allowed values” come from:** Enum-style strings are interpreted in [`process_link.py`](../process_link.py) (`_cfg()` and related helpers). There is no separate config schema file. If you set an unknown value, behavior falls through to the default branch (e.g. only `graph` enables graph mode; only `scene` switches scene-based keyframes; only `slug` switches slug filenames). **`TITLE_STYLE`** is validated: unknown values log a config warning and map to **`heuristic`**. **Booleans** accept `true` / `false` / `1` / `yes` / `y` (case-insensitive).
 
 ## Discrete string options
 
@@ -35,42 +35,42 @@ Full template: [`.env.example`](../.env.example). Below is a grouped reference; 
 
 **Graph and taxonomy**
 
-- **`GRAPH_MIN_ENTITY_CONFIDENCE`** — **Lower** → keep more entities (richer graph, more noise). **Higher** → fewer entities (stricter, sparser notes).
-- **`MAX_TOPICS_PER_VIDEO`** — **Higher** → more topic hub links per video. **Lower** → fewer topics.
-- **`TAXONOMY_AUTO_MAX_CATEGORIES`** (auto mode) — **Higher** → room for more distinct auto categories before new ones fall back to `general`. **Lower** → hit the cap sooner.
-- **`TOPIC_HUB_MIN_REEL_COUNT`** (with frequency gate enabled) — **Higher** → fewer one-off topic hub files. **Lower** → hubs are created sooner.
+- **`GRAPH_MIN_ENTITY_CONFIDENCE`**: **Lower** → keep more entities (richer graph, more noise). **Higher** → fewer entities (stricter, sparser notes).
+- **`MAX_TOPICS_PER_VIDEO`**: **Higher** → more topic hub links per video. **Lower** → fewer topics.
+- **`TAXONOMY_AUTO_MAX_CATEGORIES`** (auto mode): **Higher** → room for more distinct auto categories before new ones fall back to `general`. **Lower** → hit the cap sooner.
+- **`TOPIC_HUB_MIN_REEL_COUNT`** (with frequency gate enabled): **Higher** → fewer one-off topic hub files. **Lower** → hubs are created sooner.
 
 **Visual (OCR)**
 
-- **`MAX_KEYFRAMES_ANALYZED`** / **`MAX_IMAGES_PER_NOTE`** — **Higher** → more frames sampled and more OCR text in prompts (still **text-only** for the LLM), and/or more images embedded in the note (slower runs, more work). **Lower** → faster runs, thinner on-screen hints in prompts.
-- **`FRAME_INTERVAL_SECONDS`** (when mode is `interval`) — **Higher** → samples further apart (fewer candidate frames before the cap). **Lower** → denser sampling.
+- **`MAX_KEYFRAMES_ANALYZED`** / **`MAX_IMAGES_PER_NOTE`**: **Higher** → more frames sampled and more OCR text in prompts (still **text-only** for the LLM), and/or more images embedded in the note (slower runs, more work). **Lower** → faster runs, thinner on-screen hints in prompts.
+- **`FRAME_INTERVAL_SECONDS`** (when mode is `interval`): **Higher** → samples further apart (fewer candidate frames before the cap). **Lower** → denser sampling.
 
 **Summary alignment**
 
-- **`MIN_ALIGNMENT_SCORE_FOR_STRICT_MODE`** — The summary prompt adds extra “alignment is weak, hedge uncertainty” guidance when the parsed alignment score is **below** this threshold. **Raise** it → that stricter guidance appears **more often**. **Lower** it → only the worst alignments trigger it.
+- **`MIN_ALIGNMENT_SCORE_FOR_STRICT_MODE`**: The summary prompt adds extra “alignment is weak, hedge uncertainty” guidance when the parsed alignment score is **below** this threshold. **Raise** it → that stricter guidance appears **more often**. **Lower** it → only the worst alignments trigger it.
 
 **Transcript and caption gates**
 
-- **`TRANSCRIPT_MIN_WORDS`**, **`TRANSCRIPT_MIN_UNIQUE_WORDS`**, **`TRANSCRIPT_MIN_ALPHA_RATIO`** — **Raise** → more reels fail the transcript gate (more “blocked” / Try anyway). **Lower** → easier to pass.
-- **`TRANSCRIPT_CAPTION_MIN_OVERLAP`** — **Raise** → transcript and caption must overlap more to avoid mismatch treatment. **Lower** → more lenient.
-- **`CAPTION_MIN_WORDS`** — **Raise** → caption must be longer before it counts as a “strong” caption for gating. **Lower** → shorter captions can qualify.
+- **`TRANSCRIPT_MIN_WORDS`**, **`TRANSCRIPT_MIN_UNIQUE_WORDS`**, **`TRANSCRIPT_MIN_ALPHA_RATIO`**: **Raise** → more reels fail the transcript gate (more “blocked” / Try anyway). **Lower** → easier to pass.
+- **`TRANSCRIPT_CAPTION_MIN_OVERLAP`**: **Raise** → transcript and caption must overlap more to avoid mismatch treatment. **Lower** → more lenient.
+- **`CAPTION_MIN_WORDS`**: **Raise** → caption must be longer before it counts as a “strong” caption for gating. **Lower** → shorter captions can qualify.
 
 **ETA (Discord progress messages)**
 
-- **`ETA_QUANTILE`** (e.g. `0.75`) — **Higher** (toward `0.99`) → estimates lean on slower historical runs (usually safer, longer quoted ETAs). **Lower** (toward `0.5`) → more optimistic.
-- **`ETA_BASE_SECONDS`**, **`ETA_PER_VIDEO_SECOND`**, **`ETA_LLM_OVERHEAD_SECONDS`** — **Raise** → baseline estimates increase. **Lower** → shorter ETAs (may under-shoot).
+- **`ETA_QUANTILE`** (e.g. `0.75`): **Higher** (toward `0.99`) → estimates lean on slower historical runs (usually safer, longer quoted ETAs). **Lower** (toward `0.5`) → more optimistic.
+- **`ETA_BASE_SECONDS`**, **`ETA_PER_VIDEO_SECOND`**, **`ETA_LLM_OVERHEAD_SECONDS`**: **Raise** → baseline estimates increase. **Lower** → shorter ETAs (may under-shoot).
 
 **`/saveall` limits**
 
-- **`SAVEALL_DEFAULT_MAX_MESSAGES`**, **`SAVEALL_HARD_MAX_MESSAGES`** — **Higher** → scan deeper channel history (slower, more API work). **Lower** → shallower scan.
-- **`SAVEALL_DEFAULT_MAX_NEW_LINKS`**, **`SAVEALL_HARD_MAX_NEW_LINKS`** — **Higher** → more new reels processed per `/saveall`. **Lower** → smaller batches.
-- **`SAVEALL_PROGRESS_EVERY`** — **Higher** → fewer progress message edits during `/saveall`. **Lower** → more frequent edits.
-- **`SAVEALL_EDIT_ORIGINAL_PROGRESS`** — `true` (default) updates the original deferred `/saveall` response in place, avoiding follow-up budget issues; set `false` to use follow-up sends.
-- **`SAVEALL_FALLBACK_CHANNEL_MESSAGE`** — `true` allows one non-ephemeral channel fallback message when interaction delivery fails; default `false` avoids surprise channel noise.
+- **`SAVEALL_DEFAULT_MAX_MESSAGES`**, **`SAVEALL_HARD_MAX_MESSAGES`**: **Higher** → scan deeper channel history (slower, more API work). **Lower** → shallower scan.
+- **`SAVEALL_DEFAULT_MAX_NEW_LINKS`**, **`SAVEALL_HARD_MAX_NEW_LINKS`**: **Higher** → more new reels processed per `/saveall`. **Lower** → smaller batches.
+- **`SAVEALL_PROGRESS_EVERY`**: **Higher** → fewer progress message edits during `/saveall`. **Lower** → more frequent edits.
+- **`SAVEALL_EDIT_ORIGINAL_PROGRESS`**: `true` (default) updates the original deferred `/saveall` response in place, avoiding follow-up budget issues; set `false` to use follow-up sends.
+- **`SAVEALL_FALLBACK_CHANNEL_MESSAGE`**: `true` allows one non-ephemeral channel fallback message when interaction delivery fails; default `false` avoids surprise channel noise.
 
 **Discord ETA spam**
 
-- **`DISCORD_ETA_UPDATE_INTERVAL_SECONDS`** — **Higher** → less frequent ETA edits on `/save`. **Lower** → updates more often.
+- **`DISCORD_ETA_UPDATE_INTERVAL_SECONDS`**: **Higher** → less frequent ETA edits on `/save`. **Lower** → updates more often.
 
 ## Core
 
@@ -109,7 +109,7 @@ Copy [`taxonomy.example.json`](../taxonomy.example.json) to `taxonomy.json` when
 
 ## Visual (keyframes and OCR)
 
-**Note:** “Visual” here means **ffmpeg keyframes + Tesseract OCR** (a free-first path: no paid vision API). The LLM only receives **OCR-derived text** in prompts, not pixels through a vision model—so quality is often modest on busy or stylized reels. Tuning, stronger text models, and possible future vision-style integration are covered in [stack-and-costs.md](stack-and-costs.md#keyframes-and-ocr-limits-and-improvements).
+**Note:** “Visual” here means **ffmpeg keyframes + Tesseract OCR** (a free-first path: no paid vision API). The LLM only receives **OCR-derived text** in prompts, not pixels through a vision model. So quality is often modest on busy or stylized reels. Tuning, stronger text models, and possible future vision-style integration are covered in [stack-and-costs.md](stack-and-costs.md#keyframes-and-ocr-limits-and-improvements).
 
 | Variable | Purpose |
 |----------|---------|

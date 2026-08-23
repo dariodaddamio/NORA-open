@@ -9,7 +9,7 @@ Back to main [README](../README.md)
 
 ## Multiple people, one server
 
-- **Where files go:** only on the computer running `bot.py`—see [setup.md — Shared servers](setup.md#shared-servers-where-notes-live).
+- **Where files go:** only on the computer running `bot.py`. See [setup.md#shared-servers-where-notes-live](setup.md#shared-servers-where-notes-live).
 - **`/save`:** not limited to one at a time; several members can trigger saves concurrently (heavier load on the host). Same URL raced in parallel is rare but not mutex-protected.
 - **`/saveall`:** only one `/saveall` job per server at a time; a second attempt gets a “already running” message until it finishes.
 
@@ -23,8 +23,8 @@ Back to main [README](../README.md)
 
 - Update `yt-dlp` (`pip install -U yt-dlp`).
 - Set `YTDLP_COOKIES_FROM_BROWSER` or `YTDLP_COOKIES_FILE` if Instagram blocks anonymous access.
-- **Windows + Edge/Chrome — “Could not copy Chrome cookie database” / `Permission denied` on `...\Network\Cookies`:** the browser holds that file open. **Fully quit Edge** (all windows), then in **Task Manager** end any remaining **Microsoft Edge** / **msedge.exe** processes, and run `/save` again. If it still fails, use **`YTDLP_COOKIES_FILE`** with a Netscape-format cookies export instead of `--cookies-from-browser` (see [yt-dlp FAQ — cookies](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)).
-- **Windows + Chrome — “Failed to decrypt with DPAPI”** (after the cookie file copies successfully): newer Chrome uses encryption that `yt-dlp` often cannot unwrap on Windows ([yt-dlp#10927](https://github.com/yt-dlp/yt-dlp/issues/10927)). **Recommended:** stop using `YTDLP_COOKIES_FROM_BROWSER=chrome` and set **`YTDLP_COOKIES_FILE`** to a Netscape export (e.g. [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/cclelndahbckbenkjhflpdbgdldlbecc) while logged into Instagram). **Alternatives:** use **`YTDLP_COOKIES_FROM_BROWSER=firefox`** if you log into Instagram in Firefox, or try **`edge`** with the browser fully quit (behavior varies by version).
+- **Windows + Edge/Chrome: “Could not copy Chrome cookie database” / `Permission denied` on `...\Network\Cookies`:** the browser holds that file open. **Fully quit Edge** (all windows), then in **Task Manager** end any remaining **Microsoft Edge** / **msedge.exe** processes, and run `/save` again. If it still fails, use **`YTDLP_COOKIES_FILE`** with a Netscape-format cookies export instead of `--cookies-from-browser` (see [yt-dlp FAQ: cookies](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)).
+- **Windows + Chrome: “Failed to decrypt with DPAPI”** (after the cookie file copies successfully): newer Chrome uses encryption that `yt-dlp` often cannot unwrap on Windows ([yt-dlp#10927](https://github.com/yt-dlp/yt-dlp/issues/10927)). **Recommended:** stop using `YTDLP_COOKIES_FROM_BROWSER=chrome` and set **`YTDLP_COOKIES_FILE`** to a Netscape export (e.g. [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/cclelndahbckbenkjhflpdbgdldlbecc) while logged into Instagram). **Alternatives:** use **`YTDLP_COOKIES_FROM_BROWSER=firefox`** if you log into Instagram in Firefox, or try **`edge`** with the browser fully quit (behavior varies by version).
 
 ## Notes not appearing in the vault
 
@@ -65,7 +65,7 @@ Back to main [README](../README.md)
 
 ## Summaries miss on-screen content
 
-- Expectations: OCR + text LLM is **not** a vision model—read [stack-and-costs.md](stack-and-costs.md#keyframes-and-ocr-limits-and-improvements).
+- Expectations: OCR + text LLM is **not** a vision model. Read [stack-and-costs.md](stack-and-costs.md#keyframes-and-ocr-limits-and-improvements).
 - Enable the visual path and try `FRAME_SAMPLING_MODE=scene` or higher `MAX_KEYFRAMES_ANALYZED`; check Tesseract and languages.
 - For real pixel-level understanding you need a **fork** that sends images to a vision-capable API (not configured via `.env` alone today).
 
