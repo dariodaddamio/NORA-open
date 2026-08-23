@@ -17,7 +17,7 @@ A local Discord Bot pipeline to turn your doom scrolling into an Obsidian knowle
 
 **Goal:** run the bot on your PC so **Discord slash commands** (e.g. `/save`, `/saveall`) run the pipeline and write notes into a folder you choose (typically an [Obsidian](https://obsidian.md/) vault). Use **[NORA-open](https://github.com/dariodaddamio/NORA-open)** or any clone; remember to keep **`.env` and your vault off GitHub.**
 
-**Who gets the files:** markdown and assets are written only on **the machine that runs `bot.py`**, under **`OBSIDIAN_VAULT_PATH`**. Everyone else in the server sees **Discord replies** (paths, errors, progress)—not your vault—unless you share that folder yourself (sync, git, network drive, etc.). Details: [docs/setup.md#shared-servers-where-notes-live](docs/setup.md#shared-servers-where-notes-live).
+**Who gets the files:** markdown and assets are written only on **the machine that runs `bot.py`**, under **`OBSIDIAN_VAULT_PATH`**. Other server members see **Discord replies** (paths, errors, progress). Your vault stays on the host until you share that folder (sync, git, network drive, etc.). Details: [docs/setup.md#shared-servers-where-notes-live](docs/setup.md#shared-servers-where-notes-live).
 
 ### 0. What you need installed
 

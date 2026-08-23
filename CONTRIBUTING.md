@@ -1,12 +1,12 @@
 # Contributing to NORA
 
-Thanks for helping improve NORA. This repository (**NORA-open**) is the public mirror of the project: application code and docs, without personal vaults or secrets.
+Thanks for helping improve NORA. This repository ships the Discord bot and user documentation.
 
 ## Before you open a PR
 
 - **Do not** commit `.env`, Discord tokens, cookies, `vault/`, `processed.json`, or paths to your machine.
 - Match the existing style in `bot.py` and `process_link.py` (formatting, typing, minimal churn).
-- **Tests:** the public mirror may not include a `tests/` tree (see [docs/open-private-workspace.md](docs/open-private-workspace.md)). Describe how you verified your change (manual `/save`, logs, or local tests you ran).
+- **Tests:** describe how you verified your change (manual `/save`, logs, or local tests you ran).
 - **Docs:** user-visible behavior or new env vars should update `README.md`, `docs/`, and `.env.example` when relevant.
 
 ## How to contribute

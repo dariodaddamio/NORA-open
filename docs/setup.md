@@ -2,7 +2,7 @@
 
 Back to main [README](../README.md)
 
-See also [open-private-workspace.md](open-private-workspace.md) for how the public mirror relates to a private dev tree and what never belongs on a public remote.
+Keep secrets and vault data local. See [CONTRIBUTING.md](../CONTRIBUTING.md) before opening a PR.
 
 ## Prerequisites
 

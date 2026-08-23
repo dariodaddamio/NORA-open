@@ -9,7 +9,7 @@ NORA keeps heavy lifting local where possible (download, ffmpeg, Whisper, option
 | **Default (low recurring cost)** | Local: `ffmpeg`, `faster-whisper`, optional `tesseract`. LLM: **OpenRouter** (pick a model — free tiers vary by provider). | Day-to-day; good balance of quality and cost. |
 | **Stronger summaries** | Same local stack; set `OPENROUTER_MODEL` to a **paid / stronger** model on OpenRouter. | When free models are too vague or inconsistent. |
 | **Local / privacy LLM** | Omit `OPENROUTER_API_KEY`; use **Ollama** (`OLLAMA_MODEL`). | Keep prompts and completions on your machine. |
-| **More cloud (extension point)** | Today, speech-to-text is **local Whisper**. A fully hosted pipeline would swap `transcribe_audio` in `process_link.py` for a cloud STT API — not shipped as a preset, but that is the natural seam if you want zero local ML. | Advanced self-hosting or fork. |
+| **More cloud (extension point)** | Today, speech-to-text is **local Whisper**. A fully hosted pipeline would swap `transcribe_audio` in `process_link.py` for a cloud STT API. That path requires a fork; the seam is the natural place to start. | Advanced self-hosting or fork. |
 
 OpenRouter billing and model availability are defined by their service. Local tools need Python, ffmpeg, and (for OCR) Tesseract on your PATH or via `OCR_TESSERACT_CMD`.
 
