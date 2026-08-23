@@ -1,11 +1,7 @@
-# Open vs private
+# Workspace layout
 
-**NORA-private:** full tree + vault + Opifex wiring + tests.
+The public git mirror ships the Discord bot (`bot.py`, `process_link.py`), install docs, and `tools/topic_merge.py`. Publish copies the tree through [`.public-export-ignore`](../.public-export-ignore).
 
-**NORA-open:** Discord slash bot plus public maintenance helpers. Publish via rsync + [`.public-export-ignore`](../.public-export-ignore).
+The development tree adds vault data, harness wiring, brain intake, tests, and agent plans. Those paths are listed in the ignore file.
 
-Ships: `bot.py`, `process_link.py`, user docs, `tools/topic_merge.py`, and starter JSON templates (`topic-merge-map.example.json`, `topic_aliases.example.json`, `taxonomy.example.json`).
-
-Exclude: secrets, vault, Opifex (`opifex.config.mjs`, `package.json`, `AGENTS.md`, brain-intake docs, `.opifex`, …), `tools/brain_ingest.py`, `.github` publish CI, `tests/`.
-
-Keep local env files and `processed.json` off public remotes. Own Discord token; never commit it.
+Keep local env files and `processed.json` out of git remotes. Use your own Discord token; do not commit it.

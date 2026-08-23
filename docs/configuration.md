@@ -95,7 +95,7 @@ Full template: [`.env.example`](../.env.example). Below is a grouped reference; 
 | `GRAPH_MIN_ENTITY_CONFIDENCE` | Drop entities below this confidence ([tuning](#turning-knobs-higher-vs-lower)). |
 | `MAX_TOPICS_PER_VIDEO` | Cap on subtopics per video ([tuning](#turning-knobs-higher-vs-lower)). |
 | `TOPIC_ALIASES_ENABLED` | Opt-in canonical topic aliases and ban-list at ingest (default `false`) |
-| `TOPIC_ALIASES_PATH` | Alias file path (default `topic_aliases.json`; starter template: `topic_aliases.example.json`) |
+| `TOPIC_ALIASES_PATH` | Alias file path (default `topic_aliases.json`; schema below) |
 | `TOPIC_HUB_FREQUENCY_GATE_ENABLED` | Opt-in gate to delay topic hub creation until a topic repeats across reels (default `false`) |
 | `TOPIC_HUB_MIN_REEL_COUNT` | Distinct reel count required before creating/updating `Topics/<slug>.md` when frequency gate is enabled |
 | `TOPIC_HISTORY_PATH` | Local topic frequency bookkeeping file for the gate (default `topic-history.json`) |
@@ -247,7 +247,43 @@ python tools/topic_merge.py --vault "C:\path\to\vault" --map ".\topic-merge-map.
 python tools/topic_merge.py --vault "C:\path\to\vault" --map ".\topic-merge-map.json" --apply
 ```
 
-- Merge map shape: `{"old-slug":"new-slug"}`.
-- Example starter file: `topic-merge-map.example.json`.
+- Merge map shape (`topic-merge-map.json`):
+
+```json
+{
+  "3d-design": "3d",
+  "blender-tips": "blender",
+  "uiux-design": "uiux"
+}
+```
+
+Each key is an old topic slug; each value is the canonical slug to keep.
+
 - Default behavior rewrites links and leaves old topic hubs as **redirect stubs**.
 - Add `--delete-old` if you prefer deleting merged hubs instead of stubs.
+
+### Topic alias file (`topic_aliases.json`)
+
+Used when `TOPIC_ALIASES_ENABLED=true`. Copy the shape below into `topic_aliases.json` beside the bot:
+
+```json
+{
+  "aliases": {
+    "3d-design": "3d",
+    "3d-design-basics": "3d",
+    "blender-tips": "blender"
+  },
+  "labels": {
+    "3d": "3D",
+    "uiux": "UI/UX"
+  },
+  "ban": [
+    "general-tutorial",
+    "misc-tips"
+  ]
+}
+```
+
+- `aliases`: map noisy slugs to one canonical slug at ingest.
+- `labels`: optional display labels for hub titles.
+- `ban`: slugs to drop from topic assignment.

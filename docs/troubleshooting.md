@@ -40,7 +40,7 @@ Back to main [README](../README.md)
 ## `Topics/` folder is exploding with near-duplicates
 
 - Keep defaults if you want current behavior; all new controls are opt-in.
-- Enable aliases with `TOPIC_ALIASES_ENABLED=true` and maintain canonical slug mappings in `topic_aliases.json` (`topic_aliases.example.json` shows schema).
+- Enable aliases with `TOPIC_ALIASES_ENABLED=true` and maintain canonical slug mappings in `topic_aliases.json` (schema in [configuration.md](configuration.md#local-topic-dedupereorg)).
 - Enable frequency gating with `TOPIC_HUB_FREQUENCY_GATE_ENABLED=true` and tune `TOPIC_HUB_MIN_REEL_COUNT` to suppress one-off hubs.
 - For existing vault cleanup, run `tools/topic_merge.py` in dry-run first, then `--apply` to rewrite `Instagram Notes` topic links and convert old hubs to redirect stubs.
 

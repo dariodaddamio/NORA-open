@@ -1,6 +1,3 @@
-# taxonomy.example.json is not listed so it ships in the public mirror as a starter template.
-# eta-history.example.json is not listed (documents JSON shape). Real eta-history.json is excluded below.
-# This file itself is NOT listed below so it is copied into NORA-open — readers can see what publish excludes.
 .git
 .github
 .env
@@ -19,7 +16,6 @@ agent-transcripts
 taxonomy.json
 .cursor
 tests
-# Opifex consumer wiring (NORA-private only; never publish to NORA-open)
 opifex.config.mjs
 package.json
 pnpm-lock.yaml
@@ -36,6 +32,8 @@ docs/plans
 scripts
 tools/brain_ingest.py
 .npmrc
-# Non-product / private-only files at repo root
+topic-merge-map.example.json
+topic_aliases.example.json
 mthx-pitch-master-brief.md
 .obsidian
+CONTEXT.md
