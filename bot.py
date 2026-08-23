@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import re
 import time
@@ -29,6 +30,22 @@ SAVEALL_HARD_MAX_MESSAGES = int(os.getenv("SAVEALL_HARD_MAX_MESSAGES", "5000"))
 SAVEALL_HARD_MAX_NEW_LINKS = int(os.getenv("SAVEALL_HARD_MAX_NEW_LINKS", "200"))
 SAVEALL_PROGRESS_EVERY = int(os.getenv("SAVEALL_PROGRESS_EVERY", "10"))
 DISCORD_ETA_UPDATE_INTERVAL_SECONDS = max(3, int(os.getenv("DISCORD_ETA_UPDATE_INTERVAL_SECONDS", "10")))
+SAVEALL_FALLBACK_CHANNEL_MESSAGE = os.getenv("SAVEALL_FALLBACK_CHANNEL_MESSAGE", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+}
+SAVEALL_EDIT_ORIGINAL_PROGRESS = os.getenv("SAVEALL_EDIT_ORIGINAL_PROGRESS", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+}
+DISCORD_MESSAGE_CHAR_LIMIT = 2000
+DISCORD_SAFE_MESSAGE_LEN = 1900
+
+logger = logging.getLogger(__name__)
 
 
 intents = discord.Intents.default()
@@ -82,6 +99,137 @@ def _force_lock(guild_id: int, url: str) -> asyncio.Lock:
     return lock
 
 
+def _truncate_for_discord(content: str, max_len: int = DISCORD_SAFE_MESSAGE_LEN) -> str:
+    text = (content or "").strip()
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1].rstrip() + "…"
+
+
+def _build_saveall_summary(
+    *,
+    scanned_messages: int,
+    found_links: int,
+    processed_count: int,
+    skipped_count: int,
+    failed_count: int,
+    max_messages_final: int,
+    max_new_links_final: int,
+    latest_note_path: Optional[str],
+    scan_error: Optional[str],
+) -> str:
+    parts = [
+        "Done with `/saveall`.",
+        f"- Scanned messages: {scanned_messages}",
+        f"- Instagram links found: {found_links}",
+        f"- Processed new links: {processed_count}",
+        f"- Skipped already-processed/duplicate links: {skipped_count}",
+        f"- Failed: {failed_count}",
+        f"- Limits used: max_messages={max_messages_final}, max_new_links={max_new_links_final}",
+    ]
+    if latest_note_path:
+        parts.append(f"- Latest note: `{latest_note_path}`")
+    if scan_error:
+        parts.append(f"- Scan interrupted: `{scan_error}`")
+    return "\n".join(parts)
+
+
+def _log_saveall_summary(
+    *,
+    guild_id: int,
+    channel_id: int,
+    scanned_messages: int,
+    found_links: int,
+    processed_count: int,
+    skipped_count: int,
+    failed_count: int,
+    latest_note_path: Optional[str],
+    scan_error: Optional[str],
+    progress_updates: int,
+    discord_delivery: str,
+) -> None:
+    lines = [
+        "[SAVEALL] SUMMARY",
+        f"guild_id={guild_id} channel_id={channel_id}",
+        f"counts scanned={scanned_messages} found={found_links} processed={processed_count} skipped={skipped_count} failed={failed_count}",
+        f"progress_updates={progress_updates}",
+        f"latest_note={latest_note_path or '(none)'}",
+        f"scan_error={scan_error or '(none)'}",
+        f"discord_delivery={discord_delivery}",
+    ]
+    block = "\n".join(lines)
+    logger.info(block)
+    print(block)
+
+
+async def _send_saveall_update(
+    *,
+    interaction: discord.Interaction,
+    channel: discord.abc.Messageable,
+    content: str,
+    me: Optional[discord.Member],
+    allow_channel_fallback: bool,
+) -> str:
+    payload = _truncate_for_discord(content)
+    use_edit = SAVEALL_EDIT_ORIGINAL_PROGRESS
+    if use_edit:
+        try:
+            await interaction.edit_original_response(content=payload)
+            return "edit_original_response:ok"
+        except discord.HTTPException as e:
+            logger.warning(
+                "saveall edit_original_response failed status=%s code=%s message=%s",
+                getattr(e, "status", None),
+                getattr(e, "code", None),
+                _truncate_err(e),
+            )
+            if not allow_channel_fallback or not SAVEALL_FALLBACK_CHANNEL_MESSAGE:
+                return f"edit_original_response:failed(status={getattr(e, 'status', 'n/a')},code={getattr(e, 'code', 'n/a')})"
+    try:
+        await interaction.followup.send(payload)
+        return "followup_send:ok"
+    except discord.HTTPException as e:
+        logger.warning(
+            "saveall followup.send failed status=%s code=%s message=%s",
+            getattr(e, "status", None),
+            getattr(e, "code", None),
+            _truncate_err(e),
+        )
+        if not allow_channel_fallback or not SAVEALL_FALLBACK_CHANNEL_MESSAGE:
+            return f"followup_send:failed(status={getattr(e, 'status', 'n/a')},code={getattr(e, 'code', 'n/a')})"
+        try:
+            can_send = hasattr(channel, "send")
+            if me and hasattr(channel, "permissions_for"):
+                perms = channel.permissions_for(me)  # type: ignore[attr-defined]
+                can_send = bool(perms and perms.send_messages)
+            if can_send:
+                await channel.send(
+                    _truncate_for_discord(
+                        "[saveall] Interaction delivery failed; posting summary in channel.\n\n" + payload,
+                        max_len=DISCORD_MESSAGE_CHAR_LIMIT,
+                    )
+                )
+                return "channel_send_fallback:ok"
+            return "channel_send_fallback:skipped(no_permission)"
+        except Exception as channel_err:
+            logger.warning("saveall channel fallback send failed: %s", _truncate_err(channel_err))
+            return f"channel_send_fallback:failed({type(channel_err).__name__})"
+
+
+async def _safe_defer(interaction: discord.Interaction, *, thinking: bool = True) -> bool:
+    if interaction.response.is_done():
+        return False
+    try:
+        await interaction.response.defer(thinking=thinking)
+        return True
+    except discord.HTTPException as e:
+        # Another response path can occasionally acknowledge first.
+        if getattr(e, "code", None) == 40060:
+            logger.warning("Interaction already acknowledged before defer (code=40060).")
+            return False
+        raise
+
+
 class TryAnywayView(discord.ui.View):
     def __init__(self, *, url: str, requester_id: int, guild_id: int):
         super().__init__(timeout=300)
@@ -99,7 +247,7 @@ class TryAnywayView(discord.ui.View):
             await interaction.response.send_message("A forced run is already in progress for this link.", ephemeral=True)
             return
 
-        await interaction.response.defer(thinking=True)
+        await _safe_defer(interaction, thinking=True)
         async with lock:
             try:
                 note_path = await asyncio.to_thread(process_instagram_link, self.url, force_process=True)
@@ -131,7 +279,7 @@ async def save(interaction: discord.Interaction, url: str):
         )
         return
 
-    await interaction.response.defer(thinking=True)
+    await _safe_defer(interaction, thinking=True)
 
     clean_url = url.strip()
     started = time.monotonic()
@@ -302,13 +450,16 @@ async def saveall(
         )
         return
 
-    await interaction.response.defer(thinking=True)
+    await _safe_defer(interaction, thinking=True)
 
     scanned_messages = 0
     found_links = 0
     processed_count = 0
     skipped_count = 0
     failed_count = 0
+    progress_updates = 0
+    latest_note_path: Optional[str] = None
+    scan_error: Optional[str] = None
 
     already_processed = get_processed_urls()
     processed_urls_this_run: set[str] = set()
@@ -342,9 +493,21 @@ async def saveall(
                         already_processed.add(url)
                         processed_urls_this_run.add(url)
                         processed_count += 1
+                        latest_note_path = str(note_path)
                         if processed_count % max(1, SAVEALL_PROGRESS_EVERY) == 0:
-                            await interaction.followup.send(
-                                f"Progress: processed {processed_count} links so far. Latest note: `{note_path}`"
+                            progress_updates += 1
+                            await _send_saveall_update(
+                                interaction=interaction,
+                                channel=channel,
+                                me=me,
+                                allow_channel_fallback=False,
+                                content=(
+                                    "Running `/saveall`...\n"
+                                    f"- Processed so far: {processed_count}\n"
+                                    f"- Failed so far: {failed_count}\n"
+                                    f"- Scanned messages so far: {scanned_messages}\n"
+                                    f"- Latest note: `{note_path}`"
+                                ),
                             )
                     except LowTranscriptSignalError:
                         skipped_count += 1
@@ -354,19 +517,39 @@ async def saveall(
                 if processed_count >= max_new_links_final:
                     break
         except Exception as e:
-            await interaction.followup.send(f"`/saveall` failed while scanning history: `{_truncate_err(e)}`")
-            return
+            scan_error = _truncate_err(e)
 
-    summary = (
-        "Done with `/saveall`.\n"
-        f"- Scanned messages: {scanned_messages}\n"
-        f"- Instagram links found: {found_links}\n"
-        f"- Processed new links: {processed_count}\n"
-        f"- Skipped already-processed/duplicate links: {skipped_count}\n"
-        f"- Failed: {failed_count}\n"
-        f"- Limits used: max_messages={max_messages_final}, max_new_links={max_new_links_final}"
+    summary = _build_saveall_summary(
+        scanned_messages=scanned_messages,
+        found_links=found_links,
+        processed_count=processed_count,
+        skipped_count=skipped_count,
+        failed_count=failed_count,
+        max_messages_final=max_messages_final,
+        max_new_links_final=max_new_links_final,
+        latest_note_path=latest_note_path,
+        scan_error=scan_error,
     )
-    await interaction.followup.send(summary)
+    discord_delivery = await _send_saveall_update(
+        interaction=interaction,
+        channel=channel,
+        me=me,
+        allow_channel_fallback=True,
+        content=summary,
+    )
+    _log_saveall_summary(
+        guild_id=guild.id,
+        channel_id=channel.id,
+        scanned_messages=scanned_messages,
+        found_links=found_links,
+        processed_count=processed_count,
+        skipped_count=skipped_count,
+        failed_count=failed_count,
+        latest_note_path=latest_note_path,
+        scan_error=scan_error,
+        progress_updates=progress_updates,
+        discord_delivery=discord_delivery,
+    )
 
 
 client.run(TOKEN)

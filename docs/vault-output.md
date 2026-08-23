@@ -9,7 +9,7 @@ Inside `OBSIDIAN_VAULT_PATH`:
 | Path | Role |
 |------|------|
 | `Instagram Notes/` | Primary video note per reel |
-| `Topics/` | Hub notes per normalized topic |
+| `Topics/` | Hub notes per normalized topic (or canonical alias slug when topic aliases are enabled) |
 | `Entities/` | Hub notes per entity (tool, concept, etc.) |
 | `Indexes/` | Category MOC notes (e.g. `Category - Design.md`) |
 | `Assets/Instagram/` | Persisted keyframes for `## Visual Highlights` |
@@ -67,6 +67,17 @@ Shape:
 - `synonyms` — normalization (e.g. `artificial intelligence` → `ai`)
 
 Tips: keep categories lowercase and stable; prefer synonyms over duplicate categories; keep categories broad.
+
+## Topic hub dedupe controls (opt-in)
+
+Default behavior is unchanged: each normalized subtopic can create/update `Topics/<slug>.md`.
+
+When enabled in `.env`:
+
+- `TOPIC_ALIASES_ENABLED=true` + `TOPIC_ALIASES_PATH=topic_aliases.json` lets you merge noisy topic slugs into canonical slugs and optionally ban slugs entirely.
+- `TOPIC_HUB_FREQUENCY_GATE_ENABLED=true` delays hub creation until a topic appears on at least `TOPIC_HUB_MIN_REEL_COUNT` distinct reels (tracked in `TOPIC_HISTORY_PATH`).
+
+Notes still keep `## Topics` wiki-links, so once a gated topic reaches threshold future runs can create the hub.
 
 ## Visual context
 

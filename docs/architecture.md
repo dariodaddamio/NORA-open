@@ -13,8 +13,8 @@ Back to main [README](../README.md) · [How it works (diagrams)](how-it-works.md
 
 For each new URL (typical `PIPELINE_MODE=graph`):
 
-1. **Download** — `python -m yt_dlp` (portable across venv paths).
-2. **Optional metadata** — caption/title when caption context is enabled.
+1. **Download** — `python -m yt_dlp` (portable across venv paths). A **metadata-only** JSON probe (`--dump-single-json --skip-download`) runs first with the **same `YTDLP_COOKIES_*` options** as the real download so duration, Discord ETA, and the `RUN start` log are correct for login-only Instagram reels.
+2. **Optional metadata** — caption/title when caption context is enabled (fed by the same probe when available).
 3. **Keyframes + OCR** (if `VISUAL_CONTEXT_ENABLED`) — `ffmpeg` sampling, **Tesseract** OCR on JPEGs; **only OCR text** (not raw images) is fed into later LLM prompts. Rank frames, build visual context string and OCR–transcript alignment. Selected frames are still saved under `Assets/Instagram/...` for the note.
 4. **Audio extraction** — `ffmpeg` to mono 16 kHz WAV.
 5. **Transcription** — `faster-whisper` (local).

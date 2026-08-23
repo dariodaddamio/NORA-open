@@ -1,8 +1,16 @@
-.env
+﻿.env
+# Netscape cookies export (session secrets; never commit)
+cookies.txt
 .venv/
 eta-history.json
+topic-history.json
+topic_aliases.json
 __pycache__/
 *.pyc
 temp/
 logs/
 NORA.md
+node_modules/
+.opifex/
+pnpm-lock.yaml
+docs/agent/

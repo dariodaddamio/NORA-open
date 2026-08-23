@@ -24,6 +24,10 @@ Full template: [`.env.example`](../.env.example). Below is a grouped reference; 
 | `FRAME_SAMPLING_MODE` | `scene` | Use ffmpeg scene-change detection instead of fixed intervals (still capped by `MAX_KEYFRAMES_ANALYZED`). |
 | `TAXONOMY_MODE` | `static` (default) | Unknown model categories map to `general`. |
 | `TAXONOMY_MODE` | `auto` | Append new sanitized categories to `TAXONOMY_PATH` when under cap (see Graph and taxonomy). |
+| `TOPIC_ALIASES_ENABLED` | `false` (default) | Keep current topic behavior (no alias merge at ingest). |
+| `TOPIC_ALIASES_ENABLED` | `true` | Apply canonical topic aliases from `TOPIC_ALIASES_PATH` before hub path resolution. |
+| `TOPIC_HUB_FREQUENCY_GATE_ENABLED` | `false` (default) | Always create/update topic hubs (`Topics/<slug>.md`) as topics appear. |
+| `TOPIC_HUB_FREQUENCY_GATE_ENABLED` | `true` | Create/update topic hubs only after a topic appears on at least `TOPIC_HUB_MIN_REEL_COUNT` distinct reels. |
 
 `OPENROUTER_MODEL` and `OLLAMA_MODEL` are **not** fixed enums: use whatever model id your provider exposes (e.g. `openrouter/free`, or a paid route on OpenRouter; Ollama tags like `llama3.1` are normalized to `llama3.1:latest` when needed).
 
@@ -34,6 +38,7 @@ Full template: [`.env.example`](../.env.example). Below is a grouped reference; 
 - **`GRAPH_MIN_ENTITY_CONFIDENCE`** — **Lower** → keep more entities (richer graph, more noise). **Higher** → fewer entities (stricter, sparser notes).
 - **`MAX_TOPICS_PER_VIDEO`** — **Higher** → more topic hub links per video. **Lower** → fewer topics.
 - **`TAXONOMY_AUTO_MAX_CATEGORIES`** (auto mode) — **Higher** → room for more distinct auto categories before new ones fall back to `general`. **Lower** → hit the cap sooner.
+- **`TOPIC_HUB_MIN_REEL_COUNT`** (with frequency gate enabled) — **Higher** → fewer one-off topic hub files. **Lower** → hubs are created sooner.
 
 **Visual (OCR)**
 
@@ -59,7 +64,9 @@ Full template: [`.env.example`](../.env.example). Below is a grouped reference; 
 
 - **`SAVEALL_DEFAULT_MAX_MESSAGES`**, **`SAVEALL_HARD_MAX_MESSAGES`** — **Higher** → scan deeper channel history (slower, more API work). **Lower** → shallower scan.
 - **`SAVEALL_DEFAULT_MAX_NEW_LINKS`**, **`SAVEALL_HARD_MAX_NEW_LINKS`** — **Higher** → more new reels processed per `/saveall`. **Lower** → smaller batches.
-- **`SAVEALL_PROGRESS_EVERY`** — **Higher** → fewer Discord progress updates. **Lower** → more chatty progress.
+- **`SAVEALL_PROGRESS_EVERY`** — **Higher** → fewer progress message edits during `/saveall`. **Lower** → more frequent edits.
+- **`SAVEALL_EDIT_ORIGINAL_PROGRESS`** — `true` (default) updates the original deferred `/saveall` response in place, avoiding follow-up budget issues; set `false` to use follow-up sends.
+- **`SAVEALL_FALLBACK_CHANNEL_MESSAGE`** — `true` allows one non-ephemeral channel fallback message when interaction delivery fails; default `false` avoids surprise channel noise.
 
 **Discord ETA spam**
 
@@ -87,6 +94,11 @@ Full template: [`.env.example`](../.env.example). Below is a grouped reference; 
 |----------|---------|
 | `GRAPH_MIN_ENTITY_CONFIDENCE` | Drop entities below this confidence ([tuning](#turning-knobs-higher-vs-lower)). |
 | `MAX_TOPICS_PER_VIDEO` | Cap on subtopics per video ([tuning](#turning-knobs-higher-vs-lower)). |
+| `TOPIC_ALIASES_ENABLED` | Opt-in canonical topic aliases and ban-list at ingest (default `false`) |
+| `TOPIC_ALIASES_PATH` | Alias file path (default `topic_aliases.json`; starter template: `topic_aliases.example.json`) |
+| `TOPIC_HUB_FREQUENCY_GATE_ENABLED` | Opt-in gate to delay topic hub creation until a topic repeats across reels (default `false`) |
+| `TOPIC_HUB_MIN_REEL_COUNT` | Distinct reel count required before creating/updating `Topics/<slug>.md` when frequency gate is enabled |
+| `TOPIC_HISTORY_PATH` | Local topic frequency bookkeeping file for the gate (default `topic-history.json`) |
 | `TAXONOMY_PATH` | Path to `taxonomy.json` (defaults apply if missing) |
 | `TAXONOMY_MODE` | `static` (default): unknown classifier categories become `general`. `auto`: append sanitized new categories to `TAXONOMY_PATH` (atomic write), then reload for the rest of the run; at cap or on error, behavior matches static for that note |
 | `TAXONOMY_AUTO_MAX_CATEGORIES` | Max category count in the JSON file (default `48`, never below built-in default list length + 1; [tuning](#turning-knobs-higher-vs-lower)) |
@@ -107,6 +119,8 @@ Copy [`taxonomy.example.json`](../taxonomy.example.json) to `taxonomy.json` when
 | `FRAME_SAMPLING_MODE` | [Discrete string options](#discrete-string-options): `interval` vs `scene`. |
 | `FRAME_INTERVAL_SECONDS` | Seconds between samples when mode is `interval` ([tuning](#turning-knobs-higher-vs-lower)). |
 | `OCR_TESSERACT_CMD` | Tesseract executable (default `tesseract`) |
+| `FFMPEG_PATH` | Full path to `ffmpeg` / `ffmpeg.exe` when the shell running `bot.py` does not inherit a working PATH (common with Cursor on Windows). Default: `ffmpeg`. |
+| `FFPROBE_PATH` | Full path to `ffprobe` / `ffprobe.exe` (same `bin` folder as FFmpeg). Default: `ffprobe`. |
 
 ## Consistency and titles
 
@@ -143,6 +157,8 @@ Copy [`taxonomy.example.json`](../taxonomy.example.json) to `taxonomy.json` when
 | `YTDLP_COOKIES_FROM_BROWSER` | e.g. `chrome` |
 | `YTDLP_COOKIES_FILE` | Path to cookies file |
 
+These apply to **both** the real download and the **pre-download** `yt-dlp` JSON probe (duration, caption), so ETAs and logs stay consistent when Instagram requires a session.
+
 ## Temp and logging
 
 | Variable | Purpose |
@@ -174,6 +190,8 @@ Copy [`taxonomy.example.json`](../taxonomy.example.json) to `taxonomy.json` when
 | `SAVEALL_HARD_MAX_MESSAGES` | Hard ceiling ([tuning](#turning-knobs-higher-vs-lower)) |
 | `SAVEALL_HARD_MAX_NEW_LINKS` | Hard cap on new links ([tuning](#turning-knobs-higher-vs-lower)) |
 | `SAVEALL_PROGRESS_EVERY` | Progress update interval ([tuning](#turning-knobs-higher-vs-lower)) |
+| `SAVEALL_EDIT_ORIGINAL_PROGRESS` | Use `interaction.edit_original_response(...)` for `/saveall` progress + final summary (default `true`) |
+| `SAVEALL_FALLBACK_CHANNEL_MESSAGE` | If interaction delivery fails, optionally post final summary directly to channel (default `false`) |
 
 ## Recommended `.env` block (graph mode)
 
@@ -211,6 +229,25 @@ CAPTION_MISMATCH_GATE_ENABLED=true
 CAPTION_MIN_WORDS=6
 TRANSCRIPT_CAPTION_MIN_OVERLAP=0.08
 CAPTION_PRIMARY_WHEN_TRANSCRIPT_WEAK=true
+# TOPIC_ALIASES_ENABLED=false
+# TOPIC_ALIASES_PATH=topic_aliases.json
+# TOPIC_HUB_FREQUENCY_GATE_ENABLED=false
+# TOPIC_HUB_MIN_REEL_COUNT=2
+# TOPIC_HISTORY_PATH=topic-history.json
 ```
 
 Adaptive ETA and emoji logging defaults are already in `.env.example` under **Recommended defaults**.
+
+## Local topic dedupe/reorg
+
+Use `tools/topic_merge.py` for existing vault cleanup (dry-run first, then apply):
+
+```powershell
+python tools/topic_merge.py --vault "C:\path\to\vault" --map ".\topic-merge-map.json"
+python tools/topic_merge.py --vault "C:\path\to\vault" --map ".\topic-merge-map.json" --apply
+```
+
+- Merge map shape: `{"old-slug":"new-slug"}`.
+- Example starter file: `topic-merge-map.example.json`.
+- Default behavior rewrites links and leaves old topic hubs as **redirect stubs**.
+- Add `--delete-old` if you prefer deleting merged hubs instead of stubs.

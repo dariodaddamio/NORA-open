@@ -1,3 +1,4 @@
+import base64
 import os
 import re
 import shutil
@@ -7,10 +8,11 @@ import json
 import time
 import threading
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import requests
 from dotenv import load_dotenv
@@ -48,6 +50,10 @@ class PipelineConfig:
     keep_temp_on_failure: bool
     cookies_from_browser: Optional[str]
     cookies_file: Optional[Path]
+    ffmpeg_path: str
+    ffprobe_path: str
+    vision_context_enabled: bool
+    openrouter_vision_model: str
     pipeline_mode: str
     graph_min_entity_confidence: float
     max_topics_per_video: int
@@ -134,6 +140,19 @@ class LowTranscriptSignalError(Exception):
         self.metrics = metrics
 
 
+class PipelineStageError(RuntimeError):
+    """User-facing pipeline failure with a named fix, not a raw subprocess dump."""
+
+
+@dataclass(frozen=True)
+class TranscriptGateDecision:
+    outcome: str
+    reasons: list[str]
+    caption_primary_context: bool
+    caption_strong: bool
+    metrics: dict[str, Any]
+
+
 @dataclass(frozen=True)
 class ProcessRunResult:
     note_path: Path
@@ -144,8 +163,12 @@ class ProcessRunResult:
 
 
 _llm_stage_stats: dict[str, Any] = {"total_calls": 0, "total_elapsed_s": 0.0, "stages": defaultdict(int)}
+_pipeline_stage_stats: dict[str, Any] = {"total_elapsed_s": 0.0, "stages": {}}
 _eta_history_lock = threading.Lock()
 _eta_runtime_lock = threading.Lock()
+_metadata_cache_lock = threading.Lock()
+_metadata_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_METADATA_CACHE_TTL_S = 90.0
 
 
 def _new_history_state() -> dict[str, Any]:
@@ -218,14 +241,16 @@ def _default_stage_estimates(video_duration_seconds: float, *, cfg: PipelineConf
     total = _estimate_total_runtime_seconds(video_duration_seconds, cfg=cfg)
     # Conservative split tuned for OpenRouter-heavy workloads.
     fractions = {
-        "download_video": 0.04,
-        "extract_keyframes": 0.05,
-        "extract_audio": 0.01,
-        "llm_classify": 0.10,
-        "llm_entities": 0.35,
-        "llm_summary": 0.10,
-        "llm_verify": 0.20,
-        "llm_title": 0.15,
+        "download_video": 0.08,
+        "extract_keyframes": 0.06,
+        "ocr_frames": 0.07,
+        "extract_audio": 0.03,
+        "transcribe_audio": 0.26,
+        "llm_classify": 0.08,
+        "llm_entities": 0.18,
+        "llm_summary": 0.08,
+        "llm_verify": 0.10,
+        "llm_title": 0.06,
     }
     return {k: max(0.2, total * v) for k, v in fractions.items()}
 
@@ -312,6 +337,195 @@ def _llm_stage_summary() -> str:
     return f"[LLM] SUMMARY calls={total_calls} elapsed={total_elapsed:.2f}s stages={stage_text}"
 
 
+def _reset_pipeline_stage_stats() -> None:
+    _pipeline_stage_stats["total_elapsed_s"] = 0.0
+    _pipeline_stage_stats["stages"] = {}
+
+
+def _record_pipeline_stage(*, stage: str, elapsed_s: float) -> None:
+    label = (stage or "unspecified").strip() or "unspecified"
+    elapsed = max(0.0, float(elapsed_s))
+    stages = _pipeline_stage_stats.get("stages")
+    if not isinstance(stages, dict):
+        stages = {}
+        _pipeline_stage_stats["stages"] = stages
+    stages[label] = float(stages.get(label, 0.0)) + elapsed
+    _pipeline_stage_stats["total_elapsed_s"] = float(_pipeline_stage_stats.get("total_elapsed_s", 0.0)) + elapsed
+
+
+def pipeline_stage_summary() -> str:
+    total_elapsed = float(_pipeline_stage_stats.get("total_elapsed_s", 0.0))
+    stages = _pipeline_stage_stats.get("stages", {})
+    if not isinstance(stages, dict) or not stages:
+        return "[PIPELINE] TIMING elapsed=0.00s stages=(none)"
+    stage_pairs = sorted(((str(k), float(v)) for k, v in stages.items()), key=lambda kv: (-kv[1], kv[0]))
+    stage_text = ", ".join(f"{name}={elapsed:.2f}s" for name, elapsed in stage_pairs)
+    return f"[PIPELINE] TIMING elapsed={total_elapsed:.2f}s stages={stage_text}"
+
+
+def ytdlp_cookie_args(
+    cookies_from_browser: Optional[str],
+    cookies_file: Optional[Path],
+) -> list[str]:
+    args: list[str] = []
+    if cookies_from_browser:
+        args += ["--cookies-from-browser", str(cookies_from_browser)]
+    if cookies_file:
+        args += ["--cookies", str(cookies_file)]
+    return args
+
+
+def format_pipeline_failure(err: BaseException) -> str:
+    pieces: list[str] = [str(err or "").strip()]
+    stderr = getattr(err, "stderr", None)
+    if isinstance(stderr, bytes):
+        stderr = stderr.decode("utf-8", errors="replace")
+    if isinstance(stderr, str) and stderr.strip():
+        pieces.append(stderr.strip())
+    output = getattr(err, "output", None)
+    if isinstance(output, bytes):
+        output = output.decode("utf-8", errors="replace")
+    if isinstance(output, str) and output.strip():
+        pieces.append(output.strip())
+    blob = "\n".join(p for p in pieces if p).lower()
+
+    if "dpapi" in blob or "failed to decrypt" in blob:
+        return (
+            "Instagram cookies could not be decrypted (Chrome DPAPI). "
+            "Stop using YTDLP_COOKIES_FROM_BROWSER=chrome and set YTDLP_COOKIES_FILE "
+            "to a Netscape cookies export while logged into Instagram."
+        )
+    if (
+        "could not copy" in blob
+        and "cookie" in blob
+    ) or (
+        "permission denied" in blob and "cookie" in blob
+    ):
+        return (
+            "Could not read the browser cookie database. Fully quit Chrome/Edge "
+            "(end leftover msedge.exe/chrome.exe in Task Manager), retry /save, "
+            "or set YTDLP_COOKIES_FILE to a Netscape cookies export."
+        )
+    if (
+        "login required" in blob
+        or "please log in" in blob
+        or "cookies are needed" in blob
+        or ("instagram" in blob and ("401" in blob or "403" in blob or "login" in blob))
+        or "use --cookies" in blob
+        or "cookies-from-browser" in blob
+    ):
+        return (
+            "Instagram blocked the download (login/session). Set YTDLP_COOKIES_FROM_BROWSER "
+            "(firefox is more reliable than chrome on Windows) or YTDLP_COOKIES_FILE "
+            "to a Netscape cookies export, then retry."
+        )
+    if "ffmpeg" in blob and (
+        "not found" in blob or "errno 2" in blob or "winerror 2" in blob or "no such file" in blob
+    ):
+        return (
+            "ffmpeg was not found on PATH for the bot process. Install ffmpeg, restart the shell, "
+            "or set FFMPEG_PATH and FFPROBE_PATH in .env to the full executable paths."
+        )
+    if "ffprobe" in blob and ("not found" in blob or "errno 2" in blob or "winerror 2" in blob):
+        return (
+            "ffprobe was not found on PATH. Set FFPROBE_PATH in .env to the ffprobe executable "
+            "next to ffmpeg, then restart the bot."
+        )
+    short = str(err).strip() or err.__class__.__name__
+    if len(short) > 400:
+        short = short[:399] + "…"
+    if short.lower().startswith("command '[") or "returned non-zero exit status" in short.lower():
+        return (
+            "Download or media step failed. If this is Instagram, set YTDLP_COOKIES_FILE "
+            "or YTDLP_COOKIES_FROM_BROWSER. If this is ffmpeg, set FFMPEG_PATH. "
+            f"Detail: {short}"
+        )
+    return short
+
+
+def format_eta_remaining_label(
+    *,
+    remaining_seconds: float,
+    elapsed_seconds: float,
+    estimated_total_seconds: float,
+    status: str = "running",
+) -> str:
+    remaining = max(0.0, float(remaining_seconds or 0.0))
+    if (status or "running") == "running" and remaining <= 0.5:
+        return "still working (past estimate)"
+    total = int(round(remaining))
+    mins, secs = divmod(total, 60)
+    hours, mins = divmod(mins, 60)
+    if hours:
+        human = f"{hours}h {mins}m {secs}s"
+    elif mins:
+        human = f"{mins}m {secs}s"
+    else:
+        human = f"{secs}s"
+    _ = elapsed_seconds, estimated_total_seconds
+    return f"~{human}"
+
+
+def select_even_frame_paths(frame_paths: list[Path], *, max_count: int) -> list[Path]:
+    frames = [p for p in frame_paths if p]
+    if not frames:
+        return []
+    cap = max(1, int(max_count))
+    if len(frames) <= cap:
+        return frames
+    if cap == 1:
+        return [frames[0]]
+    last = len(frames) - 1
+    indices = [round(i * last / (cap - 1)) for i in range(cap)]
+    picked: list[Path] = []
+    seen: set[int] = set()
+    for idx in indices:
+        if idx in seen:
+            continue
+        seen.add(idx)
+        picked.append(frames[idx])
+    return picked
+
+
+def build_llm_user_content(
+    prompt: str,
+    *,
+    image_paths: Optional[list[Path]] = None,
+    vision_enabled: bool = False,
+) -> Union[str, list[dict[str, Any]]]:
+    paths = [p for p in (image_paths or []) if p]
+    if not vision_enabled or not paths:
+        return prompt
+    parts: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+    for path in paths[:3]:
+        try:
+            raw = path.read_bytes()
+        except OSError:
+            continue
+        suffix = path.suffix.lower()
+        mime = "image/png" if suffix == ".png" else "image/jpeg"
+        data_url = f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}"
+        parts.append({"type": "image_url", "image_url": {"url": data_url}})
+    if len(parts) == 1:
+        return prompt
+    return parts
+
+
+def should_run_consistency_check(
+    *,
+    enabled: bool,
+    alignment_score: float,
+    min_score: float,
+    has_ocr: bool,
+    has_transcript: bool,
+) -> bool:
+    if enabled:
+        return True
+    if has_ocr and has_transcript and float(alignment_score) < float(min_score):
+        return True
+    return False
+
+
 def _parse_title_style(raw: Optional[str]) -> str:
     """Normalize TITLE_STYLE env to clean | heuristic | summary_heading | category."""
     s = (raw or "").strip().lower() or "clean"
@@ -350,6 +564,11 @@ def _cfg() -> PipelineConfig:
         keep_temp_on_failure=os.getenv("KEEP_TEMP_ON_FAILURE", "true").strip().lower() in {"1", "true", "yes", "y"},
         cookies_from_browser=os.getenv("YTDLP_COOKIES_FROM_BROWSER") or None,
         cookies_file=Path(os.environ["YTDLP_COOKIES_FILE"]) if os.getenv("YTDLP_COOKIES_FILE") else None,
+        ffmpeg_path=(os.getenv("FFMPEG_PATH", "ffmpeg").strip() or "ffmpeg"),
+        ffprobe_path=(os.getenv("FFPROBE_PATH", "ffprobe").strip() or "ffprobe"),
+        vision_context_enabled=os.getenv("VISION_CONTEXT_ENABLED", "false").strip().lower() in {"1", "true", "yes", "y"},
+        openrouter_vision_model=(os.getenv("OPENROUTER_VISION_MODEL") or os.getenv("OPENROUTER_MODEL", "openrouter/free")).strip()
+        or "openrouter/free",
         pipeline_mode=(os.getenv("PIPELINE_MODE", "graph").strip().lower() or "graph"),
         graph_min_entity_confidence=float(os.getenv("GRAPH_MIN_ENTITY_CONFIDENCE", "0.55")),
         max_topics_per_video=max(1, int(os.getenv("MAX_TOPICS_PER_VIDEO", "6"))),
@@ -472,7 +691,7 @@ def _sanitize_taxonomy_category_slug(
     s = re.sub(r"-{2,}", "-", s).strip("-")
     if not s or len(s) < min_len or len(s) > max_len:
         return None
-    if s in {"unknown", "none", "n-a", "na"}:
+    if s in {"unknown", "none", "n-a", "na", "misc", "other", "uncategorized", "video", "instagram"}:
         return None
     return s
 
@@ -631,7 +850,9 @@ def estimate_processing_for_url(url: str) -> dict[str, Any]:
     stage_order = [
         "download_video",
         "extract_keyframes",
+        "ocr_frames",
         "extract_audio",
+        "transcribe_audio",
         "llm_classify",
         "llm_entities",
         "llm_summary",
@@ -663,6 +884,33 @@ def estimate_processing_for_url(url: str) -> dict[str, Any]:
     }
 
 
+def _complete_named_stage(stage_name: str, elapsed: float) -> None:
+    _record_pipeline_stage(stage=stage_name, elapsed_s=elapsed)
+    active_url = _get_active_run_url()
+    if not active_url:
+        return
+    snap = get_run_eta_snapshot(active_url) or {}
+    cfg_local = _cfg()
+    _append_history_stage(cfg_local, key="pipeline/default", stage=stage_name, elapsed_seconds=elapsed)
+    completed_stage_seconds = dict(snap.get("completed_stage_seconds", {}))
+    completed_stage_seconds[stage_name] = elapsed
+    stage_estimates = dict(snap.get("stage_estimates", {}))
+    remaining = 0.0
+    for key, est in stage_estimates.items():
+        if key not in completed_stage_seconds:
+            remaining += max(0.0, float(est))
+    _update_run_snapshot(
+        active_url,
+        {
+            "completed_stage_seconds": completed_stage_seconds,
+            "estimated_remaining_seconds": remaining,
+            "elapsed_seconds": max(
+                0.0, time.monotonic() - float(snap.get("run_started_monotonic", time.monotonic()))
+            ),
+        },
+    )
+
+
 def _run(cmd: list[str], *, step: str, verbose: bool = False) -> subprocess.CompletedProcess[str]:
     cfg = _cfg()
     started = time.monotonic()
@@ -670,29 +918,34 @@ def _run(cmd: list[str], *, step: str, verbose: bool = False) -> subprocess.Comp
     done_icon = "✅" if cfg.emoji_logs_enabled else ""
     fail_icon = "❌" if cfg.emoji_logs_enabled else ""
     print(f"[PIPELINE] {start_icon} START {step}".strip())
-    if verbose:
-        completed = subprocess.run(cmd, check=True, text=True)
+    try:
+        if verbose:
+            completed = subprocess.run(cmd, check=True, text=True)
+        else:
+            completed = subprocess.run(cmd, check=False, capture_output=True, text=True)
+            if completed.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    completed.returncode,
+                    cmd,
+                    output=completed.stdout,
+                    stderr=completed.stderr,
+                )
+    except FileNotFoundError as e:
         elapsed = time.monotonic() - started
-        print(f"[PIPELINE] {done_icon} DONE {step} ({elapsed:.2f}s)".strip())
-        return completed
-
-    completed = subprocess.run(cmd, check=False, capture_output=True, text=True)
-    elapsed = time.monotonic() - started
-    if completed.returncode != 0:
-        print(f"[PIPELINE] {fail_icon} FAIL {step} (exit={completed.returncode}, {elapsed:.2f}s)".strip())
-        stderr_tail = _tail_lines(completed.stderr or "")
-        stdout_tail = _tail_lines(completed.stdout or "")
+        print(f"[PIPELINE] {fail_icon} FAIL {step} ({elapsed:.2f}s): {e}".strip())
+        raise PipelineStageError(format_pipeline_failure(e)) from e
+    except subprocess.CalledProcessError as e:
+        elapsed = time.monotonic() - started
+        print(f"[PIPELINE] {fail_icon} FAIL {step} (exit={e.returncode}, {elapsed:.2f}s)".strip())
+        stderr_tail = _tail_lines(e.stderr or "")
+        stdout_tail = _tail_lines(e.output or "")
         if stderr_tail:
             print(f"[PIPELINE] stderr tail:\n{stderr_tail}")
         if stdout_tail:
             print(f"[PIPELINE] stdout tail:\n{stdout_tail}")
-        raise subprocess.CalledProcessError(
-            completed.returncode,
-            cmd,
-            output=completed.stdout,
-            stderr=completed.stderr,
-        )
+        raise PipelineStageError(format_pipeline_failure(e)) from e
 
+    elapsed = time.monotonic() - started
     print(f"[PIPELINE] {done_icon} DONE {step} ({elapsed:.2f}s)".strip())
     stage_map = {
         "download video": "download_video",
@@ -700,30 +953,8 @@ def _run(cmd: list[str], *, step: str, verbose: bool = False) -> subprocess.Comp
         "extract audio": "extract_audio",
     }
     stage_name = stage_map.get((step or "").strip().lower())
-    active_url = _get_active_run_url()
-    if stage_name and active_url:
-        snap = get_run_eta_snapshot(active_url) or {}
-        provider = str(snap.get("provider") or "openrouter")
-        model = str(snap.get("model") or "unknown")
-        provider_key = f"llm/{provider}:{model}"
-        cfg_local = _cfg()
-        _append_history_stage(cfg_local, key="pipeline/default", stage=stage_name, elapsed_seconds=elapsed)
-        completed_stage_seconds = dict(snap.get("completed_stage_seconds", {}))
-        completed_stage_seconds[stage_name] = elapsed
-        stage_estimates = dict(snap.get("stage_estimates", {}))
-        remaining = 0.0
-        for key, est in stage_estimates.items():
-            if key not in completed_stage_seconds:
-                remaining += max(0.0, float(est))
-        _update_run_snapshot(
-            active_url,
-            {
-                "completed_stage_seconds": completed_stage_seconds,
-                "estimated_remaining_seconds": remaining,
-                "elapsed_seconds": max(0.0, time.monotonic() - float(snap.get("run_started_monotonic", time.monotonic()))),
-                "provider_key": provider_key,
-            },
-        )
+    if stage_name:
+        _complete_named_stage(stage_name, elapsed)
     return completed
 
 
@@ -767,10 +998,7 @@ def download_instagram_video(url: str, job_dir: Path, *, cookies_from_browser: O
     cmd = [sys.executable, "-m", "yt_dlp", url, "-o", output_template]
     if not cfg.subprocess_verbose_logs:
         cmd += ["--no-progress", "--no-warnings"]
-    if cookies_from_browser:
-        cmd += ["--cookies-from-browser", cookies_from_browser]
-    if cookies_file:
-        cmd += ["--cookies", str(cookies_file)]
+    cmd += ytdlp_cookie_args(cookies_from_browser, cookies_file)
     _run(cmd, step="download video", verbose=cfg.subprocess_verbose_logs)
 
     candidates = sorted(job_dir.glob("video.*"))
@@ -784,7 +1012,7 @@ def extract_audio(video_path: Path, job_dir: Path) -> Path:
     audio_path = job_dir / "audio.wav"
     _run(
         [
-            "ffmpeg",
+            cfg.ffmpeg_path,
             "-hide_banner",
             "-loglevel",
             "error",
@@ -815,18 +1043,21 @@ def _whisper_model() -> WhisperModel:
 
 
 def transcribe_audio(audio_path: Path) -> str:
+    started = time.monotonic()
     segments, _info = _whisper_model().transcribe(str(audio_path), beam_size=5)
     transcript = " ".join(segment.text.strip() for segment in segments).strip()
+    _complete_named_stage("transcribe_audio", time.monotonic() - started)
     if not transcript:
         raise ValueError("Transcript was empty.")
     return transcript
 
 
 def _video_duration_seconds(video_path: Path) -> float:
+    cfg = _cfg()
     try:
         completed = subprocess.run(
             [
-                "ffprobe",
+                cfg.ffprobe_path,
                 "-v",
                 "error",
                 "-show_entries",
@@ -848,13 +1079,18 @@ def extract_keyframes(video_path: Path, job_dir: Path, *, cfg: PipelineConfig) -
     frames_dir = job_dir / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
     output_pattern = str(frames_dir / "frame-%05d.jpg")
+    duration = _video_duration_seconds(video_path)
     if cfg.frame_sampling_mode == "scene":
-        vf = "select='gt(scene,0.35)',fps=1/2"
+        vf = "select='gt(scene,0.28)',fps=1/2"
     else:
-        vf = f"fps=1/{cfg.frame_interval_seconds}"
+        interval = max(1, int(cfg.frame_interval_seconds))
+        if duration > 0:
+            adaptive = max(1, int(duration / max(1, cfg.max_keyframes_analyzed)))
+            interval = min(interval, adaptive)
+        vf = f"fps=1/{interval}"
     _run(
         [
-            "ffmpeg",
+            cfg.ffmpeg_path,
             "-hide_banner",
             "-loglevel",
             "error",
@@ -871,20 +1107,24 @@ def extract_keyframes(video_path: Path, job_dir: Path, *, cfg: PipelineConfig) -
         verbose=cfg.subprocess_verbose_logs,
     )
     frames = sorted(frames_dir.glob("frame-*.jpg"))
-    return frames[: cfg.max_keyframes_analyzed]
+    return select_even_frame_paths(frames, max_count=cfg.max_keyframes_analyzed)
 
 
 def _ocr_image_text(image_path: Path, *, cfg: PipelineConfig) -> str:
-    try:
-        completed = subprocess.run(
-            [cfg.ocr_tesseract_cmd, str(image_path), "stdout", "-l", "eng"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return (completed.stdout or "").strip()
-    except Exception:
-        return ""
+    for psm in ("6", "11"):
+        try:
+            completed = subprocess.run(
+                [cfg.ocr_tesseract_cmd, str(image_path), "stdout", "-l", "eng", "--psm", psm],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            text = (completed.stdout or "").strip()
+            if text:
+                return text
+        except Exception:
+            continue
+    return ""
 
 
 def _word_richness(text: str) -> int:
@@ -893,7 +1133,9 @@ def _word_richness(text: str) -> int:
 
 
 def analyze_frames_with_ocr(frame_paths: list[Path], *, cfg: PipelineConfig, duration_seconds: float) -> list[dict[str, Any]]:
+    started = time.monotonic()
     if not frame_paths:
+        _complete_named_stage("ocr_frames", 0.0)
         return []
     analyzed: list[dict[str, Any]] = []
     count = len(frame_paths)
@@ -909,6 +1151,7 @@ def analyze_frames_with_ocr(frame_paths: list[Path], *, cfg: PipelineConfig, dur
                 "index": idx,
             }
         )
+    _complete_named_stage("ocr_frames", time.monotonic() - started)
     return analyzed
 
 
@@ -1020,16 +1263,28 @@ def assess_transcript_quality(transcript: str, *, cfg: PipelineConfig) -> dict[s
 
 
 def fetch_video_metadata(url: str) -> dict[str, Any]:
+    key = (url or "").strip()
+    now = time.monotonic()
+    if key:
+        with _metadata_cache_lock:
+            hit = _metadata_cache.get(key)
+            if hit and (now - hit[0]) < _METADATA_CACHE_TTL_S:
+                return dict(hit[1])
+    empty = {"caption": "", "post_title": "", "uploader": "", "duration_seconds": 0.0}
     try:
+        cfg = _cfg()
+        cmd = [
+            sys.executable,
+            "-m",
+            "yt_dlp",
+            "--dump-single-json",
+            "--skip-download",
+            "--no-warnings",
+        ]
+        cmd += ytdlp_cookie_args(cfg.cookies_from_browser, cfg.cookies_file)
+        cmd.append(key)
         completed = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "yt_dlp",
-                "--dump-single-json",
-                "--skip-download",
-                url,
-            ],
+            cmd,
             check=True,
             capture_output=True,
             text=True,
@@ -1043,14 +1298,18 @@ def fetch_video_metadata(url: str) -> dict[str, Any]:
             duration_seconds = max(0.0, float(duration_raw)) if duration_raw is not None else 0.0
         except Exception:
             duration_seconds = 0.0
-        return {
+        result = {
             "caption": caption,
             "post_title": post_title,
             "uploader": uploader,
             "duration_seconds": duration_seconds,
         }
+        if key:
+            with _metadata_cache_lock:
+                _metadata_cache[key] = (time.monotonic(), dict(result))
+        return result
     except Exception:
-        return {"caption": "", "post_title": "", "uploader": "", "duration_seconds": 0.0}
+        return empty
 
 
 def assess_transcript_caption_alignment(transcript: str, caption: str, *, cfg: PipelineConfig) -> dict[str, Any]:
@@ -1083,6 +1342,65 @@ def assess_transcript_caption_alignment(transcript: str, caption: str, *, cfg: P
             f"Transcript-only terms: {', '.join(transcript_only[:16]) or '(none)'}"
         ),
     }
+
+
+def decide_transcript_gate(
+    *,
+    transcript: str,
+    caption: str,
+    cfg: Any,
+    force_process: bool = False,
+) -> TranscriptGateDecision:
+    transcript_quality = assess_transcript_quality(transcript, cfg=cfg)
+    caption_alignment = assess_transcript_caption_alignment(transcript, caption, cfg=cfg)
+    caption_word_count = len(re.findall(r"[a-zA-Z0-9']+", caption or ""))
+    caption_strong = caption_word_count >= int(cfg.caption_min_words)
+    caption_primary_context = (
+        bool(cfg.caption_primary_when_transcript_weak)
+        and (not bool(transcript_quality.get("is_useful", True)))
+        and caption_strong
+    )
+    reasons = list(transcript_quality.get("reasons", []))
+    reasons.extend(list(caption_alignment.get("mismatch_reasons", [])) if not caption_primary_context else [])
+    metrics = {
+        "transcript": dict(transcript_quality.get("metrics", {})),
+        "caption": dict(caption_alignment.get("metrics", {})),
+        "caption_word_count": caption_word_count,
+        "transcript_quality": transcript_quality,
+        "caption_alignment": caption_alignment,
+    }
+    would_block = bool(cfg.transcript_gate_enabled) and (
+        ((not bool(transcript_quality.get("is_useful", True))) and not caption_primary_context)
+        or (
+            bool(cfg.caption_mismatch_gate_enabled)
+            and bool(caption_alignment.get("is_mismatch", False))
+            and not caption_primary_context
+        )
+    )
+    if would_block and force_process and bool(cfg.transcript_gate_allow_force):
+        return TranscriptGateDecision(
+            outcome="forced",
+            reasons=reasons,
+            caption_primary_context=caption_primary_context,
+            caption_strong=caption_strong,
+            metrics=metrics,
+        )
+    if would_block:
+        return TranscriptGateDecision(
+            outcome="blocked",
+            reasons=reasons,
+            caption_primary_context=caption_primary_context,
+            caption_strong=caption_strong,
+            metrics=metrics,
+        )
+    outcome = "caption_primary" if caption_primary_context else "normal"
+    return TranscriptGateDecision(
+        outcome=outcome,
+        reasons=reasons,
+        caption_primary_context=caption_primary_context,
+        caption_strong=caption_strong,
+        metrics=metrics,
+    )
 
 
 def align_ocr_transcript(transcript: str, frame_insights: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1287,6 +1605,26 @@ def _clean_title_text(title: str) -> str:
     return t
 
 
+def _is_generic_title_text(title: str) -> bool:
+    low = (title or "").strip().lower()
+    cleaned = _clean_title_text(title).lower()
+    generic = {
+        "untitled note",
+        "instagram",
+        "tutorial",
+        "guide",
+        "tips",
+        "how",
+        "workflow tutorial",
+        "tutorial guide",
+        "general",
+        "general guide",
+        "video",
+        "reel",
+    }
+    return low in generic or cleaned in generic
+
+
 def _extract_transcript_keywords(transcript: str, limit: int = 4) -> list[str]:
     words = re.findall(r"[a-zA-Z]{4,}", transcript.lower())
     ban = {"this", "that", "with", "from", "have", "there", "make", "your", "into", "just", "like"}
@@ -1332,13 +1670,22 @@ def generate_clean_title(
     cfg: PipelineConfig,
 ) -> tuple[str, str]:
     keywords = _extract_transcript_keywords(transcript, limit=3)
-    if subtopics:
-        fallback_seed = subtopics[0]
+    specific_subtopic = ""
+    for item in subtopics:
+        if str(item).strip() and not _is_generic_title_text(str(item)):
+            specific_subtopic = str(item).strip()
+            break
+    if specific_subtopic:
+        fallback_seed = specific_subtopic
     elif keywords:
         fallback_seed = f"{' '.join(k.title() for k in keywords[:2])} Guide"
     else:
         fallback_seed = category or "Untitled Note"
+    if _is_generic_title_text(fallback_seed) and keywords:
+        fallback_seed = f"{' '.join(k.title() for k in keywords[:2])} Guide"
     fallback = _clean_title_text(fallback_seed)
+    if _is_generic_title_text(fallback) and keywords:
+        fallback = _clean_title_text(" ".join(k.title() for k in keywords[:3]))
     style = cfg.title_style
     if style == "category":
         seed = (category or "").strip() or fallback_seed
@@ -1361,9 +1708,10 @@ Rules:
 - Title Case
 - No date
 - No word 'Instagram'
-- Must be specific to content
+- Must name the specific technique, tool, or outcome (not the category alone)
 - Prefer actionable style when suitable (e.g., "Color Swatching Guide")
-- Avoid generic-only outputs like "Tutorial", "Tips", "Guide"
+- Avoid generic-only outputs like "Tutorial", "Tips", "Guide", "Workflow Tutorial"
+- If the summary heading is generic, use subtopics or distinctive transcript terms instead
 
 Category: {category}
 Subtopics: {", ".join(subtopics) or "(none)"}
@@ -1374,13 +1722,22 @@ Summary:
     try:
         title = _llm_chat_completion(
             prompt=prompt,
-            system="Generate only the title text, no markdown.",
+            system="Generate only the title text, no markdown. Never output Tutorial, Guide, Tips, or Instagram alone.",
             cfg=cfg,
             temperature=0.1,
             stage="title",
         ).strip()
         cleaned = _clean_title_text(title)
-        if cleaned.lower() in {"instagram", "tutorial", "guide", "workflow tutorial"}:
+        banned = {
+            "instagram",
+            "tutorial",
+            "guide",
+            "workflow tutorial",
+            "untitled note",
+            (category or "").strip().lower(),
+            f"{(category or '').strip().lower()} guide",
+        }
+        if cleaned.lower() in banned or _is_generic_title_text(cleaned):
             return fallback, "fallback"
         return cleaned, "llm"
     except Exception:
@@ -1432,11 +1789,25 @@ def cleanup_temp_paths(*, cfg: PipelineConfig, job_dir: Path, success: bool) -> 
 
 
 def _llm_chat_completion(
-    *, prompt: str, system: str, cfg: PipelineConfig, temperature: float = 0.2, stage: str = "unspecified"
+    *,
+    prompt: str,
+    system: str,
+    cfg: PipelineConfig,
+    temperature: float = 0.2,
+    stage: str = "unspecified",
+    image_paths: Optional[list[Path]] = None,
 ) -> str:
     stage_name = (stage or "unspecified").strip() or "unspecified"
+    vision_on = bool(getattr(cfg, "vision_context_enabled", False)) and bool(image_paths)
     provider = "openrouter" if cfg.openrouter_api_key else "ollama"
     model = cfg.openrouter_model if cfg.openrouter_api_key else cfg.ollama_model
+    if vision_on and cfg.openrouter_api_key:
+        model = cfg.openrouter_vision_model or cfg.openrouter_model
+    user_content = build_llm_user_content(
+        prompt,
+        image_paths=image_paths,
+        vision_enabled=vision_on and bool(cfg.openrouter_api_key),
+    )
     start_icon = "🧠" if cfg.emoji_logs_enabled else ""
     done_icon = "✅" if cfg.emoji_logs_enabled else ""
     fail_icon = "❌" if cfg.emoji_logs_enabled else ""
@@ -1451,10 +1822,10 @@ def _llm_chat_completion(
                 "Content-Type": "application/json",
             },
             json={
-                "model": cfg.openrouter_model,
+                "model": model,
                 "messages": [
                     {"role": "system", "content": system},
-                    {"role": "user", "content": prompt},
+                    {"role": "user", "content": user_content},
                 ],
                 "temperature": temperature,
             },
@@ -1511,6 +1882,38 @@ def _llm_chat_completion(
         raise
 
 
+def describe_frames_with_vision(
+    frame_paths: list[Path],
+    *,
+    cfg: PipelineConfig,
+    caption_context: str = "",
+) -> str:
+    if not cfg.vision_context_enabled or not cfg.openrouter_api_key:
+        return ""
+    paths = [p for p in frame_paths if p and Path(p).exists()][: max(1, cfg.max_images_per_note)]
+    if not paths:
+        return ""
+    prompt = (
+        "Describe on-screen text, UI, and the demonstrated steps in these frames. "
+        "Be concrete. Do not invent tools that are not visible. "
+        f"Caption hint: {caption_context or '(none)'}"
+    )
+    try:
+        text = _llm_chat_completion(
+            prompt=prompt,
+            system="You describe instructional video frames. Return short bullet lines only.",
+            cfg=cfg,
+            temperature=0.1,
+            stage="vision",
+            image_paths=paths,
+        ).strip()
+    except Exception:
+        return ""
+    if not text:
+        return ""
+    return "Vision frame notes:\n" + text
+
+
 def _bounded_transcript(transcript: str) -> str:
     if len(transcript) <= 18000:
         return transcript
@@ -1540,6 +1943,12 @@ Return JSON only with this exact shape:
   "tags": ["topic/example", "tool/example"]
 }}
 
+Rules:
+- category MUST be one of the listed values. If none fit, use general.
+- Do not invent categories, and never output unknown, misc, other, or instagram.
+- subtopics must be specific techniques or tools, not generic words like tutorial or tips.
+- Prefer caption and OCR overlap terms when the transcript is thin.
+
 Keep subtopics concise and practical.
 Visual context extracted from frames/OCR:
 {visual_context or "(none)"}
@@ -1553,7 +1962,7 @@ Transcript:
 """.strip()
     raw = _llm_chat_completion(
         prompt=prompt,
-        system="You classify transcripts into a fixed taxonomy and output strict JSON only.",
+        system="You classify transcripts into a fixed taxonomy and output strict JSON only. Category must be from the allowed list.",
         cfg=cfg,
         temperature=0.1,
         stage="classify",
@@ -1677,8 +2086,11 @@ def _validate_graph_payload(
     taxonomy: TaxonomyConfig,
     cfg: PipelineConfig,
 ) -> GraphPayload:
-    category = str(classification_raw.get("category", "")).strip().lower()
-    if category not in taxonomy.categories:
+    category_raw = str(classification_raw.get("category", "")).strip().lower()
+    cats_by_lower = {c.lower(): c for c in taxonomy.categories}
+    if category_raw in cats_by_lower:
+        category = cats_by_lower[category_raw].lower()
+    else:
         category = "general"
 
     subtopics_raw = classification_raw.get("subtopics", [])
@@ -1894,7 +2306,13 @@ def build_obsidian_payload(
         caption_context=caption_context,
         caption_primary=caption_primary_context,
     )
-    if cfg.consistency_check_enabled:
+    if should_run_consistency_check(
+        enabled=bool(cfg.consistency_check_enabled),
+        alignment_score=float(alignment_score),
+        min_score=float(cfg.min_alignment_score_for_strict_mode),
+        has_ocr=bool((visual_context or "").strip()),
+        has_transcript=bool((transcript or "").strip()),
+    ):
         verification = verify_note_consistency(
             summary_markdown=summary_md,
             transcript=transcript,
@@ -2308,6 +2726,7 @@ def process_instagram_link_detailed(url: str, *, force_process: bool = False) ->
     cfg = _cfg()
     run_started = time.monotonic()
     _reset_llm_stage_stats()
+    _reset_pipeline_stage_stats()
     cfg.temp_dir.mkdir(parents=True, exist_ok=True)
     if cfg.migrate_existing_note_filenames:
         try:
@@ -2398,48 +2817,55 @@ def process_instagram_link_detailed(url: str, *, force_process: bool = False) ->
         selected_frames: list[dict[str, Any]] = []
         visual_context = ""
         alignment_result: dict[str, Any] = {"score": 0.0, "context": "(none)"}
-        if cfg.visual_context_enabled:
-            try:
-                frame_paths = extract_keyframes(video_path, job_dir, cfg=cfg)
-                duration_seconds = _video_duration_seconds(video_path)
-                frame_insights = analyze_frames_with_ocr(frame_paths, cfg=cfg, duration_seconds=duration_seconds)
-                selected_frames = select_best_frames(frame_insights, max_images=cfg.max_images_per_note)
-                visual_context = build_visual_context(frame_insights)
-                alignment_result = align_ocr_transcript("", frame_insights)
-            except Exception:
-                frame_insights = []
-                selected_frames = []
-                visual_context = ""
-                alignment_result = {"score": 0.0, "context": "(none)"}
-
-        audio_path = extract_audio(video_path, job_dir)
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            audio_future = pool.submit(extract_audio, video_path, job_dir)
+            if cfg.visual_context_enabled:
+                try:
+                    frame_paths = extract_keyframes(video_path, job_dir, cfg=cfg)
+                    duration_seconds = _video_duration_seconds(video_path)
+                    frame_insights = analyze_frames_with_ocr(frame_paths, cfg=cfg, duration_seconds=duration_seconds)
+                    selected_frames = select_best_frames(frame_insights, max_images=cfg.max_images_per_note)
+                    visual_context = build_visual_context(frame_insights)
+                    if cfg.vision_context_enabled:
+                        vision_paths = [Path(item["path"]) for item in selected_frames if item.get("path")]
+                        vision_text = describe_frames_with_vision(
+                            vision_paths,
+                            cfg=cfg,
+                            caption_context=caption_context,
+                        )
+                        if vision_text:
+                            visual_context = (visual_context + "\n" + vision_text).strip()
+                except Exception:
+                    frame_insights = []
+                    selected_frames = []
+                    visual_context = ""
+                    alignment_result = {"score": 0.0, "context": "(none)"}
+            audio_path = audio_future.result()
+        if not cfg.visual_context_enabled:
+            _complete_named_stage("extract_keyframes", 0.0)
+            _complete_named_stage("ocr_frames", 0.0)
         transcript = transcribe_audio(audio_path)
-        transcript_quality = assess_transcript_quality(transcript, cfg=cfg)
-        caption_alignment = assess_transcript_caption_alignment(transcript, caption_context, cfg=cfg)
-        caption_word_count = len(re.findall(r"[a-zA-Z0-9']+", caption_context))
-        caption_strong = caption_word_count >= cfg.caption_min_words
-        caption_primary_context = (
-            cfg.caption_primary_when_transcript_weak
-            and (not bool(transcript_quality.get("is_useful", True)))
-            and caption_strong
+        gate = decide_transcript_gate(
+            transcript=transcript,
+            caption=caption_context,
+            cfg=cfg,
+            force_process=force_process,
         )
-        if (
-            cfg.transcript_gate_enabled
-            and (
-                ((not bool(transcript_quality.get("is_useful", True))) and not caption_primary_context)
-                or (cfg.caption_mismatch_gate_enabled and bool(caption_alignment.get("is_mismatch", False)) and not caption_primary_context)
-            )
-            and (not force_process or not cfg.transcript_gate_allow_force)
-        ):
-            reasons = list(transcript_quality.get("reasons", []))
-            reasons.extend(list(caption_alignment.get("mismatch_reasons", [])))
+        transcript_quality = dict(gate.metrics.get("transcript_quality") or {})
+        if not transcript_quality:
+            transcript_quality = assess_transcript_quality(transcript, cfg=cfg)
+        caption_alignment = dict(gate.metrics.get("caption_alignment") or {})
+        if not caption_alignment:
+            caption_alignment = assess_transcript_caption_alignment(transcript, caption_context, cfg=cfg)
+        caption_primary_context = gate.caption_primary_context
+        if gate.outcome == "blocked":
             raise LowTranscriptSignalError(
                 url=url.strip(),
-                reasons=reasons,
+                reasons=list(gate.reasons),
                 metrics={
-                    "transcript": dict(transcript_quality.get("metrics", {})),
-                    "caption": dict(caption_alignment.get("metrics", {})),
-                    "caption_word_count": caption_word_count,
+                    "transcript": dict(gate.metrics.get("transcript") or {}),
+                    "caption": dict(gate.metrics.get("caption") or {}),
+                    "caption_word_count": gate.metrics.get("caption_word_count"),
                 },
             )
         if frame_insights:
@@ -2501,6 +2927,7 @@ def process_instagram_link_detailed(url: str, *, force_process: bool = False) ->
         )
     finally:
         print(_llm_stage_summary())
+        print(pipeline_stage_summary())
         if not success:
             elapsed = time.monotonic() - run_started
             fail_icon = "❌" if cfg.emoji_logs_enabled else ""

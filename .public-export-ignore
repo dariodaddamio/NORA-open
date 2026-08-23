@@ -12,8 +12,30 @@ logs
 vault
 processed.json
 eta-history.json
+topic-history.json
+topic_aliases.json
 NORA.md
 agent-transcripts
 taxonomy.json
 .cursor
 tests
+# Opifex consumer wiring (NORA-private only; never publish to NORA-open)
+opifex.config.mjs
+package.json
+pnpm-lock.yaml
+pnpm-workspace.yaml
+node_modules
+.opifex
+AGENTS.md
+biome.json
+docs/opifex-private.md
+docs/brain-intake.md
+docs/brain-product-plan.md
+docs/agent
+docs/plans
+scripts
+tools/brain_ingest.py
+.npmrc
+# Non-product / private-only files at repo root
+mthx-pitch-master-brief.md
+.obsidian

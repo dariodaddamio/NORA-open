@@ -24,7 +24,7 @@ A local Discord Bot pipeline to turn your doom scrolling into an Obsidian knowle
 | Requirement | Why |
 |-------------|-----|
 | **Python 3.10+** | Runs the bot and pipeline |
-| **[ffmpeg](https://ffmpeg.org/)** on your PATH | Extracts audio from reels (`ffmpeg -version` should work) |
+| **[ffmpeg](https://ffmpeg.org/)** | Normally on `PATH` (`ffmpeg -version`). If the IDE terminal does not see it (common on Windows), set `FFMPEG_PATH` and `FFPROBE_PATH` in `.env` — see [Visual / OCR env](docs/configuration.md#visual-keyframes-and-ocr). |
 | **A Discord bot** | Slash commands and replies |
 | **A folder for notes** | `OBSIDIAN_VAULT_PATH` — vault **root** folder (the one that contains or will contain `Instagram Notes/`, not the `.obsidian` folder) |
 | **An LLM (pick one)** | **OpenRouter** (API key, optional free models) **or** **Ollama** (local, no OpenRouter key) |
@@ -85,7 +85,7 @@ Wait until the process stays running with no traceback. Slash commands can take 
 
 ### 6. Try it
 
-In your server, run **`/save`** and paste an Instagram reel URL, or **`/saveall`** in a channel to scan history. If something fails, start with **[docs/troubleshooting.md](docs/troubleshooting.md)**.
+In your server, run **`/save`** and paste an Instagram reel URL, or **`/saveall`** in a channel to scan history. `/saveall` now updates a single deferred Discord response in place by default (to reduce webhook follow-up failures on long runs) and always logs a structured completion summary server-side. Topic-hub dedupe controls (`TOPIC_ALIASES_*`, `TOPIC_HUB_*`) and local merge tooling (`tools/topic_merge.py`) are documented in **[docs/configuration.md](docs/configuration.md)**. If something fails, start with **[docs/troubleshooting.md](docs/troubleshooting.md)**.
 
 ## Documentation
 
@@ -102,6 +102,8 @@ In your server, run **`/save`** and paste an Instagram reel URL, or **`/saveall`
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common failures and quality tuning |
 
 **Index:** [docs/README.md](docs/README.md)
+
+**Local research notes (this workspace):** [Solutions-MicroHX-Grasp-Align.md](Solutions-MicroHX-Grasp-Align.md) (microtube heat exchanger grasp/alignment nuggets), [Solutions3.md](Solutions3.md) (broader PS3 manufacturing/digital-thread nuggets).
 
 **Issues and ideas:** [NORA-open issues](https://github.com/dariodaddamio/NORA-open/issues) — bug reports and feature suggestions welcome there.
 

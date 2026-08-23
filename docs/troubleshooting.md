@@ -17,11 +17,14 @@ Back to main [README](../README.md)
 
 - Verify `OPENROUTER_API_KEY` and `OPENROUTER_MODEL`, or Ollama running with `OLLAMA_MODEL`.
 - Run `ffmpeg -version` and `python -m yt_dlp --version` in the **same** venv as the bot.
+- If the log shows **`FAIL ... executable not found: 'ffmpeg'`** (or `'ffprobe'`): the process running `bot.py` does **not** see FFmpeg on `PATH`. Either fully **restart Cursor** (or refresh `PATH` in that terminal) and confirm `ffmpeg -version`, or set **`FFMPEG_PATH`** and **`FFPROBE_PATH`** in `.env` to the full paths to `ffmpeg.exe` and `ffprobe.exe` (same `bin` folder), then restart the bot.
 
 ## Instagram download issues
 
 - Update `yt-dlp` (`pip install -U yt-dlp`).
 - Set `YTDLP_COOKIES_FROM_BROWSER` or `YTDLP_COOKIES_FILE` if Instagram blocks anonymous access.
+- **Windows + Edge/Chrome — “Could not copy Chrome cookie database” / `Permission denied` on `...\Network\Cookies`:** the browser holds that file open. **Fully quit Edge** (all windows), then in **Task Manager** end any remaining **Microsoft Edge** / **msedge.exe** processes, and run `/save` again. If it still fails, use **`YTDLP_COOKIES_FILE`** with a Netscape-format cookies export instead of `--cookies-from-browser` (see [yt-dlp FAQ — cookies](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp)).
+- **Windows + Chrome — “Failed to decrypt with DPAPI”** (after the cookie file copies successfully): newer Chrome uses encryption that `yt-dlp` often cannot unwrap on Windows ([yt-dlp#10927](https://github.com/yt-dlp/yt-dlp/issues/10927)). **Recommended:** stop using `YTDLP_COOKIES_FROM_BROWSER=chrome` and set **`YTDLP_COOKIES_FILE`** to a Netscape export (e.g. [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/cclelndahbckbenkjhflpdbgdldlbecc) while logged into Instagram). **Alternatives:** use **`YTDLP_COOKIES_FROM_BROWSER=firefox`** if you log into Instagram in Firefox, or try **`edge`** with the browser fully quit (behavior varies by version).
 
 ## Notes not appearing in the vault
 
@@ -34,6 +37,13 @@ Back to main [README](../README.md)
 - Lower `GRAPH_MIN_ENTITY_CONFIDENCE` (e.g. `0.55` → `0.40`).
 - Raise `MAX_TOPICS_PER_VIDEO`.
 
+## `Topics/` folder is exploding with near-duplicates
+
+- Keep defaults if you want current behavior; all new controls are opt-in.
+- Enable aliases with `TOPIC_ALIASES_ENABLED=true` and maintain canonical slug mappings in `topic_aliases.json` (`topic_aliases.example.json` shows schema).
+- Enable frequency gating with `TOPIC_HUB_FREQUENCY_GATE_ENABLED=true` and tune `TOPIC_HUB_MIN_REEL_COUNT` to suppress one-off hubs.
+- For existing vault cleanup, run `tools/topic_merge.py` in dry-run first, then `--apply` to rewrite `Instagram Notes` topic links and convert old hubs to redirect stubs.
+
 ## Visual highlights missing
 
 - `tesseract --version` or set `OCR_TESSERACT_CMD`.
@@ -44,6 +54,14 @@ Back to main [README](../README.md)
 
 - Other jobs may still use `temp/`; root is only removed when empty.
 - Set `KEEP_TEMP=false` if you expect cleanup (default in `.env.example`).
+
+## `/saveall` shows Discord webhook/token errors (401 / 50027)
+
+- Pipeline success is independent from Discord follow-up delivery: if logs show `[PIPELINE] ... RUN done ... status=success`, note writes + `processed.json` updates already happened for those URLs.
+- `/saveall` now defaults to editing the deferred interaction message (`SAVEALL_EDIT_ORIGINAL_PROGRESS=true`) to avoid follow-up message budget exhaustion.
+- If interaction delivery still fails (token expiry/Discord API issues), `/saveall` logs a structured `[SAVEALL] SUMMARY` block with counts and latest note path.
+- Optional fallback: set `SAVEALL_FALLBACK_CHANNEL_MESSAGE=true` to post the final summary directly in the channel when interaction delivery fails.
+- Discord delivery failures do **not** by themselves explain leftover `temp/`; check `KEEP_TEMP`, `KEEP_TEMP_ON_FAILURE`, and whether any run actually failed.
 
 ## Summaries miss on-screen content
 
