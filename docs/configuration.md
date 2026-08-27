@@ -4,7 +4,7 @@ Back to main [README](../README.md)
 
 Full template: [`.env.example`](../.env.example). Below is a grouped reference; uncomment or add variables as needed.
 
-**Where “allowed values” come from:** Enum-style strings are interpreted in [`process_link.py`](../process_link.py) (`_cfg()` and related helpers). There is no separate config schema file. If you set an unknown value, behavior falls through to the default branch (e.g. only `graph` enables graph mode; only `scene` switches scene-based keyframes; only `slug` switches slug filenames). **`TITLE_STYLE`** is validated: unknown values log a config warning and map to **`heuristic`**. **Booleans** accept `true` / `false` / `1` / `yes` / `y` (case-insensitive).
+**Where “allowed values” come from:** Enum-style strings are interpreted in [`process_link.py`](../process_link.py) (`_cfg()` and related helpers)—there is no separate config schema file. If you set an unknown value, behavior falls through to the default branch (e.g. only `graph` enables graph mode; only `scene` switches scene-based keyframes; only `slug` switches slug filenames). **`TITLE_STYLE`** is validated: unknown values log a config warning and map to **`heuristic`**. **Booleans** accept `true` / `false` / `1` / `yes` / `y` (case-insensitive).
 
 ## Discrete string options
 
@@ -35,42 +35,42 @@ Full template: [`.env.example`](../.env.example). Below is a grouped reference; 
 
 **Graph and taxonomy**
 
-- **`GRAPH_MIN_ENTITY_CONFIDENCE`**: **Lower** → keep more entities (richer graph, more noise). **Higher** → fewer entities (stricter, sparser notes).
-- **`MAX_TOPICS_PER_VIDEO`**: **Higher** → more topic hub links per video. **Lower** → fewer topics.
-- **`TAXONOMY_AUTO_MAX_CATEGORIES`** (auto mode): **Higher** → room for more distinct auto categories before new ones fall back to `general`. **Lower** → hit the cap sooner.
-- **`TOPIC_HUB_MIN_REEL_COUNT`** (with frequency gate enabled): **Higher** → fewer one-off topic hub files. **Lower** → hubs are created sooner.
+- **`GRAPH_MIN_ENTITY_CONFIDENCE`** — **Lower** → keep more entities (richer graph, more noise). **Higher** → fewer entities (stricter, sparser notes).
+- **`MAX_TOPICS_PER_VIDEO`** — **Higher** → more topic hub links per video. **Lower** → fewer topics.
+- **`TAXONOMY_AUTO_MAX_CATEGORIES`** (auto mode) — **Higher** → room for more distinct auto categories before new ones fall back to `general`. **Lower** → hit the cap sooner.
+- **`TOPIC_HUB_MIN_REEL_COUNT`** (with frequency gate enabled) — **Higher** → fewer one-off topic hub files. **Lower** → hubs are created sooner.
 
 **Visual (OCR)**
 
-- **`MAX_KEYFRAMES_ANALYZED`** / **`MAX_IMAGES_PER_NOTE`**: **Higher** → more frames sampled and more OCR text in prompts (still **text-only** for the LLM), and/or more images embedded in the note (slower runs, more work). **Lower** → faster runs, thinner on-screen hints in prompts.
-- **`FRAME_INTERVAL_SECONDS`** (when mode is `interval`): **Higher** → samples further apart (fewer candidate frames before the cap). **Lower** → denser sampling.
+- **`MAX_KEYFRAMES_ANALYZED`** / **`MAX_IMAGES_PER_NOTE`** — **Higher** → more frames sampled and more OCR text in prompts (still **text-only** for the LLM), and/or more images embedded in the note (slower runs, more work). **Lower** → faster runs, thinner on-screen hints in prompts.
+- **`FRAME_INTERVAL_SECONDS`** (when mode is `interval`) — **Higher** → samples further apart (fewer candidate frames before the cap). **Lower** → denser sampling.
 
 **Summary alignment**
 
-- **`MIN_ALIGNMENT_SCORE_FOR_STRICT_MODE`**: The summary prompt adds extra “alignment is weak, hedge uncertainty” guidance when the parsed alignment score is **below** this threshold. **Raise** it → that stricter guidance appears **more often**. **Lower** it → only the worst alignments trigger it.
+- **`MIN_ALIGNMENT_SCORE_FOR_STRICT_MODE`** — The summary prompt adds extra “alignment is weak, hedge uncertainty” guidance when the parsed alignment score is **below** this threshold. **Raise** it → that stricter guidance appears **more often**. **Lower** it → only the worst alignments trigger it.
 
 **Transcript and caption gates**
 
-- **`TRANSCRIPT_MIN_WORDS`**, **`TRANSCRIPT_MIN_UNIQUE_WORDS`**, **`TRANSCRIPT_MIN_ALPHA_RATIO`**: **Raise** → more reels fail the transcript gate (more “blocked” / Try anyway). **Lower** → easier to pass.
-- **`TRANSCRIPT_CAPTION_MIN_OVERLAP`**: **Raise** → transcript and caption must overlap more to avoid mismatch treatment. **Lower** → more lenient.
-- **`CAPTION_MIN_WORDS`**: **Raise** → caption must be longer before it counts as a “strong” caption for gating. **Lower** → shorter captions can qualify.
+- **`TRANSCRIPT_MIN_WORDS`**, **`TRANSCRIPT_MIN_UNIQUE_WORDS`**, **`TRANSCRIPT_MIN_ALPHA_RATIO`** — **Raise** → more reels fail the transcript gate (more “blocked” / Try anyway). **Lower** → easier to pass.
+- **`TRANSCRIPT_CAPTION_MIN_OVERLAP`** — **Raise** → transcript and caption must overlap more to avoid mismatch treatment. **Lower** → more lenient.
+- **`CAPTION_MIN_WORDS`** — **Raise** → caption must be longer before it counts as a “strong” caption for gating. **Lower** → shorter captions can qualify.
 
 **ETA (Discord progress messages)**
 
-- **`ETA_QUANTILE`** (e.g. `0.75`): **Higher** (toward `0.99`) → estimates lean on slower historical runs (usually safer, longer quoted ETAs). **Lower** (toward `0.5`) → more optimistic.
-- **`ETA_BASE_SECONDS`**, **`ETA_PER_VIDEO_SECOND`**, **`ETA_LLM_OVERHEAD_SECONDS`**: **Raise** → baseline estimates increase. **Lower** → shorter ETAs (may under-shoot).
+- **`ETA_QUANTILE`** (e.g. `0.75`) — **Higher** (toward `0.99`) → estimates lean on slower historical runs (usually safer, longer quoted ETAs). **Lower** (toward `0.5`) → more optimistic.
+- **`ETA_BASE_SECONDS`**, **`ETA_PER_VIDEO_SECOND`**, **`ETA_LLM_OVERHEAD_SECONDS`** — **Raise** → baseline estimates increase. **Lower** → shorter ETAs (may under-shoot).
 
 **`/saveall` limits**
 
-- **`SAVEALL_DEFAULT_MAX_MESSAGES`**, **`SAVEALL_HARD_MAX_MESSAGES`**: **Higher** → scan deeper channel history (slower, more API work). **Lower** → shallower scan.
-- **`SAVEALL_DEFAULT_MAX_NEW_LINKS`**, **`SAVEALL_HARD_MAX_NEW_LINKS`**: **Higher** → more new reels processed per `/saveall`. **Lower** → smaller batches.
-- **`SAVEALL_PROGRESS_EVERY`**: **Higher** → fewer progress message edits during `/saveall`. **Lower** → more frequent edits.
-- **`SAVEALL_EDIT_ORIGINAL_PROGRESS`**: `true` (default) updates the original deferred `/saveall` response in place, avoiding follow-up budget issues; set `false` to use follow-up sends.
-- **`SAVEALL_FALLBACK_CHANNEL_MESSAGE`**: `true` allows one non-ephemeral channel fallback message when interaction delivery fails; default `false` avoids surprise channel noise.
+- **`SAVEALL_DEFAULT_MAX_MESSAGES`**, **`SAVEALL_HARD_MAX_MESSAGES`** — **Higher** → scan deeper channel history (slower, more API work). **Lower** → shallower scan.
+- **`SAVEALL_DEFAULT_MAX_NEW_LINKS`**, **`SAVEALL_HARD_MAX_NEW_LINKS`** — **Higher** → more new reels processed per `/saveall`. **Lower** → smaller batches.
+- **`SAVEALL_PROGRESS_EVERY`** — **Higher** → fewer progress message edits during `/saveall`. **Lower** → more frequent edits.
+- **`SAVEALL_EDIT_ORIGINAL_PROGRESS`** — `true` (default) updates the original deferred `/saveall` response in place, avoiding follow-up budget issues; set `false` to use follow-up sends.
+- **`SAVEALL_FALLBACK_CHANNEL_MESSAGE`** — `true` allows one non-ephemeral channel fallback message when interaction delivery fails; default `false` avoids surprise channel noise.
 
 **Discord ETA spam**
 
-- **`DISCORD_ETA_UPDATE_INTERVAL_SECONDS`**: **Higher** → less frequent ETA edits on `/save`. **Lower** → updates more often.
+- **`DISCORD_ETA_UPDATE_INTERVAL_SECONDS`** — **Higher** → less frequent ETA edits on `/save`. **Lower** → updates more often.
 
 ## Core
 
@@ -95,7 +95,7 @@ Full template: [`.env.example`](../.env.example). Below is a grouped reference; 
 | `GRAPH_MIN_ENTITY_CONFIDENCE` | Drop entities below this confidence ([tuning](#turning-knobs-higher-vs-lower)). |
 | `MAX_TOPICS_PER_VIDEO` | Cap on subtopics per video ([tuning](#turning-knobs-higher-vs-lower)). |
 | `TOPIC_ALIASES_ENABLED` | Opt-in canonical topic aliases and ban-list at ingest (default `false`) |
-| `TOPIC_ALIASES_PATH` | Alias file path (default `topic_aliases.json`; schema below) |
+| `TOPIC_ALIASES_PATH` | Alias file path (default `topic_aliases.json`; starter template: `topic_aliases.example.json`) |
 | `TOPIC_HUB_FREQUENCY_GATE_ENABLED` | Opt-in gate to delay topic hub creation until a topic repeats across reels (default `false`) |
 | `TOPIC_HUB_MIN_REEL_COUNT` | Distinct reel count required before creating/updating `Topics/<slug>.md` when frequency gate is enabled |
 | `TOPIC_HISTORY_PATH` | Local topic frequency bookkeeping file for the gate (default `topic-history.json`) |
@@ -109,7 +109,7 @@ Copy [`taxonomy.example.json`](../taxonomy.example.json) to `taxonomy.json` when
 
 ## Visual (keyframes and OCR)
 
-**Note:** “Visual” here means **ffmpeg keyframes + Tesseract OCR** (a free-first path: no paid vision API). The LLM only receives **OCR-derived text** in prompts, not pixels through a vision model. So quality is often modest on busy or stylized reels. Tuning, stronger text models, and possible future vision-style integration are covered in [stack-and-costs.md](stack-and-costs.md#keyframes-and-ocr-limits-and-improvements).
+**Note:** “Visual” here means **ffmpeg keyframes + Tesseract OCR** (a free-first path). Frames are spread across the clip up to `MAX_KEYFRAMES_ANALYZED`. The LLM receives OCR-derived text unless `VISION_CONTEXT_ENABLED` is on. Tuning and vision are covered in [stack-and-costs.md](stack-and-costs.md#keyframes-and-ocr-limits-and-improvements).
 
 | Variable | Purpose |
 |----------|---------|
@@ -119,6 +119,8 @@ Copy [`taxonomy.example.json`](../taxonomy.example.json) to `taxonomy.json` when
 | `FRAME_SAMPLING_MODE` | [Discrete string options](#discrete-string-options): `interval` vs `scene`. |
 | `FRAME_INTERVAL_SECONDS` | Seconds between samples when mode is `interval` ([tuning](#turning-knobs-higher-vs-lower)). |
 | `OCR_TESSERACT_CMD` | Tesseract executable (default `tesseract`) |
+| `VISION_CONTEXT_ENABLED` | Optional OpenRouter vision stage on selected frames (default `false`). Off path stays OCR-text-only. |
+| `OPENROUTER_VISION_MODEL` | Vision model id when `VISION_CONTEXT_ENABLED=true` (defaults to `OPENROUTER_MODEL`) |
 | `FFMPEG_PATH` | Full path to `ffmpeg` / `ffmpeg.exe` when the shell running `bot.py` does not inherit a working PATH (common with Cursor on Windows). Default: `ffmpeg`. |
 | `FFPROBE_PATH` | Full path to `ffprobe` / `ffprobe.exe` (same `bin` folder as FFmpeg). Default: `ffprobe`. |
 
@@ -126,7 +128,7 @@ Copy [`taxonomy.example.json`](../taxonomy.example.json) to `taxonomy.json` when
 
 | Variable | Purpose |
 |----------|---------|
-| `CONSISTENCY_CHECK_ENABLED` | Post-summary claim verification |
+| `CONSISTENCY_CHECK_ENABLED` | Post-summary claim verification (default `true`). Weak OCR/transcript pairs still verify even when this is false. |
 | `MIN_ALIGNMENT_SCORE_FOR_STRICT_MODE` | When alignment score is **below** this, summary prompt adds cautious hedging ([tuning](#turning-knobs-higher-vs-lower)). |
 | `REWRITE_CONTRADICTED_CLAIMS` | Rewrite summary when contradictions found |
 | `TITLE_STYLE` | [Discrete string options](#discrete-string-options): `clean`, `heuristic`, `summary_heading`, `category`. |
@@ -157,7 +159,7 @@ Copy [`taxonomy.example.json`](../taxonomy.example.json) to `taxonomy.json` when
 | `YTDLP_COOKIES_FROM_BROWSER` | e.g. `chrome` |
 | `YTDLP_COOKIES_FILE` | Path to cookies file |
 
-These apply to **both** the real download and the **pre-download** `yt-dlp` JSON probe (duration, caption), so ETAs and logs stay consistent when Instagram requires a session.
+These apply to **both** the real download and the **pre-download** `yt-dlp` JSON probe (duration, caption), so ETAs and logs stay consistent when Instagram requires a session. Probe results are reused for about 90 seconds so `/save` does not run yt-dlp JSON twice.
 
 ## Temp and logging
 
@@ -176,7 +178,7 @@ These apply to **both** the real download and the **pre-download** `yt-dlp` JSON
 | `ETA_BASE_SECONDS` | Fixed overhead in estimates ([tuning](#turning-knobs-higher-vs-lower)) |
 | `ETA_PER_VIDEO_SECOND` | Per-second-of-video multiplier ([tuning](#turning-knobs-higher-vs-lower)) |
 | `ETA_LLM_OVERHEAD_SECONDS` | Extra budget for LLM stages ([tuning](#turning-knobs-higher-vs-lower)) |
-| `ETA_HISTORY_PATH` | JSON file NORA **creates and updates** on disk: it appends **per-stage durations** (seconds) after LLM calls, keyed by provider/model (e.g. `llm/openrouter:openrouter/free`) and stage name (`llm_entities`, …). Used to refine Discord ETAs once `ETA_MIN_SAMPLES` samples exist. Values of **`0.0`** mean that run recorded no measurable wall time (very fast response, test/mocked run, or timer granularity). Safe to delete the real file to reset. **Do not commit** the live file. See [`.gitignore`](../.gitignore). Empty shape reference: [`eta-history.example.json`](../eta-history.example.json). |
+| `ETA_HISTORY_PATH` | JSON file NORA **creates and updates** on disk: it appends **per-stage durations** (seconds) after LLM calls, keyed by provider/model (e.g. `llm/openrouter:openrouter/free`) and stage name (`llm_entities`, …). Used to refine Discord ETAs once `ETA_MIN_SAMPLES` samples exist. Values of **`0.0`** mean that run recorded no measurable wall time (very fast response, test/mocked run, or timer granularity). Safe to delete the real file to reset. **Do not commit** the live file—see [`.gitignore`](../.gitignore) and [`.public-export-ignore`](../.public-export-ignore). Empty shape reference: [`eta-history.example.json`](../eta-history.example.json). |
 | `ETA_HISTORY_WINDOW` | Max samples per stage |
 | `ETA_MIN_SAMPLES` | Samples before history overrides defaults |
 | `ETA_QUANTILE` | Quantile over past stage durations for conservative ETAs ([tuning](#turning-knobs-higher-vs-lower)) |
@@ -192,6 +194,7 @@ These apply to **both** the real download and the **pre-download** `yt-dlp` JSON
 | `SAVEALL_PROGRESS_EVERY` | Progress update interval ([tuning](#turning-knobs-higher-vs-lower)) |
 | `SAVEALL_EDIT_ORIGINAL_PROGRESS` | Use `interaction.edit_original_response(...)` for `/saveall` progress + final summary (default `true`) |
 | `SAVEALL_FALLBACK_CHANNEL_MESSAGE` | If interaction delivery fails, optionally post final summary directly to channel (default `false`) |
+| `SAVE_MAX_CONCURRENT` | Max overlapping `/save` jobs (default `2`). `/saveall` links use the same slots. |
 
 ## Recommended `.env` block (graph mode)
 
@@ -247,43 +250,7 @@ python tools/topic_merge.py --vault "C:\path\to\vault" --map ".\topic-merge-map.
 python tools/topic_merge.py --vault "C:\path\to\vault" --map ".\topic-merge-map.json" --apply
 ```
 
-- Merge map shape (`topic-merge-map.json`):
-
-```json
-{
-  "3d-design": "3d",
-  "blender-tips": "blender",
-  "uiux-design": "uiux"
-}
-```
-
-Each key is an old topic slug; each value is the canonical slug to keep.
-
+- Merge map shape: `{"old-slug":"new-slug"}`.
+- Example starter file: `topic-merge-map.example.json`.
 - Default behavior rewrites links and leaves old topic hubs as **redirect stubs**.
 - Add `--delete-old` if you prefer deleting merged hubs instead of stubs.
-
-### Topic alias file (`topic_aliases.json`)
-
-Used when `TOPIC_ALIASES_ENABLED=true`. Copy the shape below into `topic_aliases.json` beside the bot:
-
-```json
-{
-  "aliases": {
-    "3d-design": "3d",
-    "3d-design-basics": "3d",
-    "blender-tips": "blender"
-  },
-  "labels": {
-    "3d": "3D",
-    "uiux": "UI/UX"
-  },
-  "ban": [
-    "general-tutorial",
-    "misc-tips"
-  ]
-}
-```
-
-- `aliases`: map noisy slugs to one canonical slug at ingest.
-- `labels`: optional display labels for hub titles.
-- `ban`: slugs to drop from topic assignment.

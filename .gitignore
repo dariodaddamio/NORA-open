@@ -1,4 +1,4 @@
-﻿.env
+.env
 # Netscape cookies export (session secrets; never commit)
 cookies.txt
 .venv/
@@ -12,5 +12,7 @@ logs/
 NORA.md
 node_modules/
 .opifex/
+.tmp-brain-intake/
+.tmp-brain-audit/
 pnpm-lock.yaml
 docs/agent/

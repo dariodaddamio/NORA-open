@@ -7,31 +7,31 @@ Back to main [README](../README.md) · [How it works (diagrams)](how-it-works.md
 - Registers Discord slash commands and lightweight orchestration.
 - `/save` processes one URL.
 - `/saveall` scans channel history, extracts Instagram URLs, skips duplicates and `processed.json` entries, runs the pipeline per new link.
-- Concurrency: one `/saveall` job per server at a time; progress every `SAVEALL_PROGRESS_EVERY` items.
+- Concurrency: one `/saveall` job per server at a time; `/save` is capped by `SAVE_MAX_CONCURRENT` (default 2); progress every `SAVEALL_PROGRESS_EVERY` items.
 
 ## Processing pipeline (`process_link.py`)
 
 For each new URL (typical `PIPELINE_MODE=graph`):
 
-1. **Download**: `python -m yt_dlp` (portable across venv paths). A **metadata-only** JSON probe (`--dump-single-json --skip-download`) runs first with the **same `YTDLP_COOKIES_*` options** as the real download so duration, Discord ETA, and the `RUN start` log are correct for login-only Instagram reels.
-2. **Optional metadata**: caption/title when caption context is enabled (fed by the same probe when available).
-3. **Keyframes + OCR** (if `VISUAL_CONTEXT_ENABLED`): `ffmpeg` sampling, **Tesseract** OCR on JPEGs; **only OCR text** is fed into later LLM prompts. Raw images are not sent to the LLM. Rank frames, build visual context string and OCR–transcript alignment. Selected frames are still saved under `Assets/Instagram/...` for the note.
-4. **Audio extraction**: `ffmpeg` to mono 16 kHz WAV.
-5. **Transcription**: `faster-whisper` (local).
-6. **Gates**: transcript quality; transcript–caption alignment; outcomes:
+1. **Download** — `python -m yt_dlp` (portable across venv paths). A **metadata-only** JSON probe (`--dump-single-json --skip-download`) runs first with the **same `YTDLP_COOKIES_*` options** as the real download so duration, Discord ETA, and the `RUN start` log are correct for login-only Instagram reels.
+2. **Optional metadata** — caption/title when caption context is enabled (fed by the same probe when available).
+3. **Keyframes + OCR** (if `VISUAL_CONTEXT_ENABLED`) — `ffmpeg` sampling, **Tesseract** OCR on JPEGs; **only OCR text** (not raw images) is fed into later LLM prompts unless `VISION_CONTEXT_ENABLED` is on. Frames are spread across the clip (not only the first N). Rank frames, build visual context string and OCR–transcript alignment. Selected frames are still saved under `Assets/Instagram/...` for the note.
+4. **Audio extraction** — `ffmpeg` to mono 16 kHz WAV (overlaps keyframes/OCR when visual is on).
+5. **Transcription** — `faster-whisper` (local). End-of-run logs include `[PIPELINE] TIMING` stage seconds plus `[LLM] SUMMARY`.
+6. **Gates** — transcript quality; transcript–caption alignment; outcomes:
    - Normal (transcript usable)
    - Caption-primary (weak transcript, strong caption)
    - Blocked → Discord message + optional **Try anyway** (`TRANSCRIPT_GATE_ALLOW_FORCE`)
-7. **Knowledge enrichment**: classify taxonomy, extract entities, generate markdown summary (**text-only** LLM calls: transcript, caption, and OCR-derived “visual context”); optional verification and contradiction rewrite. If `TAXONOMY_MODE=auto`, a novel sanitized category is merged into `TAXONOMY_PATH` and taxonomy is reloaded before entity extraction and summary.
-8. **Graph write**: video note, topic notes, entity notes, category index; persist selected frames under `Assets/Instagram/...`.
+7. **Knowledge enrichment** — classify taxonomy, extract entities, generate markdown summary (**text-only** LLM calls: transcript, caption, and OCR-derived “visual context”); optional verification and contradiction rewrite. If `TAXONOMY_MODE=auto`, a novel sanitized category is merged into `TAXONOMY_PATH` and taxonomy is reloaded before entity extraction and summary.
+8. **Graph write** — video note, topic notes, entity notes, category index; persist selected frames under `Assets/Instagram/...`.
 
 If `PIPELINE_MODE=basic`, pipeline collapses to single-note summarization (`summary:basic` LLM stage).
 
 ## Gate and decision matrix
 
-1. **Transcript usefulness**: word count, unique words, alpha ratio, repetition/noise heuristics.
-2. **Transcript–caption alignment**: keyword overlap vs caption/title.
-3. **Decision**: normal, caption-primary, or gate + Try anyway.
+1. **Transcript usefulness** — word count, unique words, alpha ratio, repetition/noise heuristics.
+2. **Transcript–caption alignment** — keyword overlap vs caption/title.
+3. **Decision** — normal, caption-primary, or gate + Try anyway.
 
 ## AI routing
 
@@ -48,7 +48,7 @@ Each completion logs:
 - `[LLM] FAIL stage=<name> ...`
 - End of run: `[LLM] SUMMARY calls=<n> elapsed=<seconds>s stages=...`
 
-**Graph mode: typical stages**
+**Graph mode — typical stages**
 
 | Stage | When |
 |-------|------|
@@ -87,7 +87,7 @@ Call counts vary: gates short-circuit failed runs; verification/rewrite/repair a
 
 ## Consistency verification
 
-When `CONSISTENCY_CHECK_ENABLED=true`:
+When `CONSISTENCY_CHECK_ENABLED=true` (default), or when OCR and transcript both exist and alignment is below `MIN_ALIGNMENT_SCORE_FOR_STRICT_MODE`:
 
 - OCR/transcript alignment informs prompts; key claims from the summary are checked (`supported` / `uncertain` / `contradicted`).
 - Metrics land in frontmatter and in `## Verification`.

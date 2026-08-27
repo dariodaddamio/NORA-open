@@ -1,0 +1,248 @@
+{
+  "main": {
+    "id": "1fd4fcb476e7229c",
+    "type": "split",
+    "children": [
+      {
+        "id": "eb9f54c5d4943f9a",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "1f1011f0828190a2",
+            "type": "leaf",
+            "state": {
+              "type": "bases",
+              "state": {
+                "file": "Untitled.base",
+                "viewName": "Table"
+              },
+              "icon": "lucide-table",
+              "title": "Untitled"
+            }
+          },
+          {
+            "id": "4198c772c139329e",
+            "type": "leaf",
+            "state": {
+              "type": "bases",
+              "state": {
+                "file": "Untitled.base",
+                "viewName": "Table"
+              },
+              "icon": "lucide-table",
+              "title": "Untitled"
+            }
+          }
+        ],
+        "currentTab": 1
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "837218795513f87f",
+    "type": "split",
+    "children": [
+      {
+        "id": "da6d7b97c83f27bd",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "8a9c0b63ce08c419",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "fc7a304c8117d451",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "65769aa151fe0a88",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 200
+  },
+  "right": {
+    "id": "ba283b3e40565de7",
+    "type": "split",
+    "children": [
+      {
+        "id": "c8130318f810a2db",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "c88a49428693d94a",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Solutions-MicroHX-Grasp-Align.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for Solutions-MicroHX-Grasp-Align"
+            }
+          },
+          {
+            "id": "67153bbc75fd7115",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Solutions-MicroHX-Grasp-Align.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from Solutions-MicroHX-Grasp-Align"
+            }
+          },
+          {
+            "id": "705d6a925f779355",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "0a04817bc1c99f28",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "bd92661a671a752b",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Solutions-MicroHX-Grasp-Align.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of Solutions-MicroHX-Grasp-Align"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "8a9c0b63ce08c419",
+  "lastOpenFiles": [
+    "Untitled",
+    "Untitled 1.base",
+    "Untitled.base",
+    "vault/Instagram Notes/Adjust Star Properties In3D Design.md",
+    "Problem3.md",
+    "mthx-pitch-master-brief.md",
+    "Problem1.md",
+    "mthx-process-brief.md",
+    "mthx-pitch-master-brief 1.md",
+    "CONTRIBUTING.md",
+    "Solutions-MicroHX-Grasp-Align.md",
+    "docs/design/README.md",
+    "docs/design/ceramic-weave-frame.scad",
+    "docs/design/ceramic-weave-tension-frame.svg",
+    "docs/design",
+    "docs/visualizations/tennis-weave-5p5in-1mm.html",
+    "docs/visualizations/metal-mesh-crystalline-3d.html",
+    "docs/visualizations",
+    "temp/crystalline-mesh-stack-3d.html",
+    "Solutions3.md",
+    "Solutions2.md",
+    "Problem2.md",
+    "Solutions1.md",
+    "temp/20260410-220344/frames",
+    "temp/20260410-220344/video.mp4",
+    "vault/Instagram Notes/Chatgpt Analytics Identification.md",
+    "temp/20260410-215501/frames/frame-00043.jpg",
+    "temp/20260410-215501/frames/frame-00042.jpg",
+    "temp/20260410-215501/frames/frame-00041.jpg",
+    "temp/20260410-215501/frames/frame-00040.jpg",
+    "temp/20260410-215501/frames/frame-00039.jpg",
+    "temp/20260410-215501/frames/frame-00038.jpg",
+    "temp/20260410-215501/frames/frame-00037.jpg",
+    "temp/20260410-215501/frames/frame-00036.jpg",
+    "temp/20260410-215501/frames/frame-00035.jpg",
+    "vault/Instagram Notes/Apply Shark Skin Denticles To Aircraft.md",
+    "vault/Instagram Notes/Creating A Topographic Effect In Photoshop.md",
+    "vault/Entities/dolphins.md",
+    "vault/Entities/active-louver-system.md",
+    "vault/Entities/electromagnetic-system.md",
+    "vault/Entities/3d-modeling-software.md",
+    "vault/Entities/airfoil.md",
+    "vault/Entities/denticles.md",
+    "vault/Entities/shark-skin.md",
+    "README.md",
+    "Solutions3-Honeywell-Overlap-Assessment.md"
+  ]
+}

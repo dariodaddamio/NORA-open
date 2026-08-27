@@ -1,0 +1,10 @@
+#!/bin/sh
+# Prune done/overridden wipe-gate rows, stage active.md, then scratch gate.
+node scripts/check-active-plan.mjs --prune || exit 1
+if ! git diff --quiet -- docs/plans/active.md 2>/dev/null; then
+  git add -- docs/plans/active.md
+fi
+# Opifex monorepo also gates scratch scripts on commit.
+if [ -f scripts/check-scratch-scripts.mjs ]; then
+  node scripts/check-scratch-scripts.mjs || exit 1
+fi
